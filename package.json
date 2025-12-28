@@ -1,0 +1,16 @@
+{
+  "name": "turbowarp-ai-agent",
+  "version": "1.0.0",
+  "description": "Agente em Node.js que controla o editor TurboWarp/Scratch via puppeteer e WebSockets.",
+  "main": "agent.js",
+  "scripts": {
+    "start": "node agent.js"
+  },
+  "type": "module",
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "puppeteer": "^22.10.0",
+    "ws": "^8.16.0"
+  }
+}
