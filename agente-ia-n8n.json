@@ -1,0 +1,604 @@
+{
+  "name": "Agente IA Multisserviços",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "agente-ia",
+        "responseMode": "lastNode",
+        "responseData": "firstEntryJson",
+        "options": {
+          "responseContentType": "application/json",
+          "responseCode": 200
+        }
+      },
+      "id": "Webhook_Entrada",
+      "name": "Entrada Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [0, 0]
+    },
+    {
+      "parameters": {
+        "property": "={{$json[\"body\"] ? $json.body.action : \"chat\"}}",
+        "rules": {
+          "values": [
+            {
+              "operation": "equal",
+              "value": "chat"
+            },
+            {
+              "operation": "equal",
+              "value": "imagem"
+            },
+            {
+              "operation": "equal",
+              "value": "tempo"
+            },
+            {
+              "operation": "equal",
+              "value": "noticias"
+            },
+            {
+              "operation": "equal",
+              "value": "drive"
+            },
+            {
+              "operation": "equal",
+              "value": "calendar"
+            }
+          ]
+        }
+      },
+      "id": "Switch_Acao",
+      "name": "Escolher Ação",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 2,
+      "position": [250, 0]
+    },
+    {
+      "parameters": {
+        "resource": "chat",
+        "operation": "chat",
+        "model": "gpt-4o-mini",
+        "messages": [
+          {
+            "role": "system",
+            "content": "Você é um assistente multilíngue focado em respostas concisas e úteis."
+          },
+          {
+            "role": "user",
+            "content": "={{$json.body.prompt || 'Olá, conte-me algo inspirador.'}}"
+          }
+        ],
+        "additionalFields": {
+          "temperature": 0.7
+        }
+      },
+      "id": "Chat_OpenAI",
+      "name": "Chat OpenAI",
+      "type": "n8n-nodes-base.openAi",
+      "typeVersion": 2,
+      "position": [500, -200],
+      "credentials": {
+        "openAiApi": "OpenAI (preencha sua chave API)"
+      }
+    },
+    {
+      "parameters": {
+        "resource": "image",
+        "operation": "create",
+        "model": "gpt-image-1",
+        "prompt": "={{$json.body.prompt || 'Paisagem futurista em cores vibrantes'}}",
+        "size": "1024x1024"
+      },
+      "id": "Imagem_OpenAI",
+      "name": "Imagem OpenAI",
+      "type": "n8n-nodes-base.openAi",
+      "typeVersion": 2,
+      "position": [500, -20],
+      "credentials": {
+        "openAiApi": "OpenAI (preencha sua chave API)"
+      }
+    },
+    {
+      "parameters": {
+        "requestMethod": "GET",
+        "url": "https://api.openweathermap.org/data/2.5/weather",
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "q",
+              "value": "={{$json.body.city || 'São Paulo'}}"
+            },
+            {
+              "name": "appid",
+              "value": "={{$json.body.apiKeys?.openWeather || 'SUA_CHAVE_OPENWEATHER'}}"
+            },
+            {
+              "name": "units",
+              "value": "metric"
+            },
+            {
+              "name": "lang",
+              "value": "pt_br"
+            }
+          ]
+        }
+      },
+      "id": "Tempo_HTTP",
+      "name": "Previsão do Tempo",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 2,
+      "position": [500, 160]
+    },
+    {
+      "parameters": {
+        "functionCode": "return [{\n  resumo: `${$json.name}: ${$json.weather[0].description}`,\n  temperatura: `${$json.main.temp}°C`,\n  sensacao: `${$json.main.feels_like}°C`,\n  umidade: `${$json.main.humidity}%`,\n  vento: `${$json.wind.speed} m/s`\n}];"
+      },
+      "id": "Tempo_Formatar",
+      "name": "Formatar Tempo",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 2,
+      "position": [750, 160]
+    },
+    {
+      "parameters": {
+        "requestMethod": "GET",
+        "url": "https://newsapi.org/v2/top-headlines",
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "country",
+              "value": "br"
+            },
+            {
+              "name": "apiKey",
+              "value": "={{$json.body.apiKeys?.newsApi || 'SUA_CHAVE_NEWSAPI'}}"
+            },
+            {
+              "name": "pageSize",
+              "value": "5"
+            }
+          ]
+        }
+      },
+      "id": "Noticias_HTTP",
+      "name": "Buscar Notícias",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 2,
+      "position": [500, 340]
+    },
+    {
+      "parameters": {
+        "functionCode": "const itens = $json.articles || [];\nreturn itens.map((artigo, index) => ({\n  rank: index + 1,\n  titulo: artigo.title,\n  resumo: artigo.description,\n  fonte: artigo.source?.name,\n  url: artigo.url\n}));"
+      },
+      "id": "Noticias_Formatar",
+      "name": "Formatar Notícias",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 2,
+      "position": [750, 340]
+    },
+    {
+      "parameters": {
+        "operation": "list",
+        "limit": 5,
+        "options": {}
+      },
+      "id": "GoogleDrive_Listar",
+      "name": "Google Drive - Arquivos Recentes",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 1,
+      "position": [500, 520],
+      "credentials": {
+        "googleDriveOAuth2Api": "Google OAuth2 (Drive/Sheets/Gmail)"
+      }
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "returnAll": false,
+        "limit": 5
+      },
+      "id": "GoogleCalendar_Proximos",
+      "name": "Google Calendar - Próximos Eventos",
+      "type": "n8n-nodes-base.googleCalendar",
+      "typeVersion": 2,
+      "position": [500, 700],
+      "credentials": {
+        "googleCalendarOAuth2Api": "Google OAuth2 (Drive/Sheets/Gmail)"
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "return [{\n  mensagem: 'Ação não suportada. Envie action=chat|imagem|tempo|noticias|drive|calendar',\n  recebido: $json.body\n}];"
+      },
+      "id": "Acao_Invalida",
+      "name": "Ação Inválida",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 2,
+      "position": [500, 880]
+    },
+    {
+      "parameters": {
+        "respondWith": "lastNode"
+      },
+      "id": "Responder_Webhook",
+      "name": "Responder ao Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [980, 160]
+    },
+    {
+      "parameters": {
+        "functionCode": "const arquivos = items.map(item => ({\n  nome: item.json.name,\n  tipo: item.json.mimeType,\n  link: item.json.webViewLink || item.json.webContentLink,\n}));\nreturn [{ arquivos }];"
+      },
+      "id": "Drive_Formatar",
+      "name": "Formatar Drive",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 2,
+      "position": [750, 520]
+    },
+    {
+      "parameters": {
+        "functionCode": "const eventos = items.map(evento => ({\n  titulo: evento.json.summary,\n  inicio: evento.json.start?.dateTime || evento.json.start?.date,\n  fim: evento.json.end?.dateTime || evento.json.end?.date,\n  link: evento.json.htmlLink\n}));\nreturn [{ eventos }];"
+      },
+      "id": "Calendar_Formatar",
+      "name": "Formatar Calendário",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 2,
+      "position": [750, 700]
+    },
+    {
+      "parameters": {
+        "functionCode": "return [{ chat: $json.choices?.[0]?.message?.content || 'Sem resposta', action: 'chat' }];"
+      },
+      "id": "Chat_Formatar",
+      "name": "Formatar Chat",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 2,
+      "position": [750, -200]
+    },
+    {
+      "parameters": {
+        "functionCode": "return [{ imagem: $json.data?.[0]?.url || 'Sem URL gerada', action: 'imagem' }];"
+      },
+      "id": "Imagem_Formatar",
+      "name": "Formatar Imagem",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 2,
+      "position": [750, -20]
+    },
+    {
+      "parameters": {
+        "functionCode": "return [{ tempo: $json, action: 'tempo' }];"
+      },
+      "id": "Tempo_Rotular",
+      "name": "Rotular Tempo",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 2,
+      "position": [980, 160]
+    },
+    {
+      "parameters": {
+        "functionCode": "return [{ noticias: $json, action: 'noticias' }];"
+      },
+      "id": "Noticias_Rotular",
+      "name": "Rotular Notícias",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 2,
+      "position": [980, 340]
+    },
+    {
+      "parameters": {
+        "functionCode": "return [{ drive: $json, action: 'drive' }];"
+      },
+      "id": "Drive_Rotular",
+      "name": "Rotular Drive",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 2,
+      "position": [980, 520]
+    },
+    {
+      "parameters": {
+        "functionCode": "return [{ calendar: $json, action: 'calendar' }];"
+      },
+      "id": "Calendar_Rotular",
+      "name": "Rotular Calendário",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 2,
+      "position": [980, 700]
+    },
+    {
+      "parameters": {
+        "functionCode": "return [{ default: $json, action: 'default' }];"
+      },
+      "id": "Default_Rotular",
+      "name": "Rotular Padrão",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 2,
+      "position": [980, 880]
+    }
+  ],
+  "connections": {
+    "Entrada Webhook": {
+      "main": [
+        [
+          {
+            "node": "Escolher Ação",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Escolher Ação": {
+      "main": [
+        [
+          {
+            "node": "Chat OpenAI",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Imagem OpenAI",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Previsão do Tempo",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Buscar Notícias",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Google Drive - Arquivos Recentes",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Google Calendar - Próximos Eventos",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Ação Inválida",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Chat OpenAI": {
+      "main": [
+        [
+          {
+            "node": "Formatar Chat",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Imagem OpenAI": {
+      "main": [
+        [
+          {
+            "node": "Formatar Imagem",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Previsão do Tempo": {
+      "main": [
+        [
+          {
+            "node": "Formatar Tempo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Formatar Tempo": {
+      "main": [
+        [
+          {
+            "node": "Rotular Tempo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buscar Notícias": {
+      "main": [
+        [
+          {
+            "node": "Formatar Notícias",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Formatar Notícias": {
+      "main": [
+        [
+          {
+            "node": "Rotular Notícias",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Drive - Arquivos Recentes": {
+      "main": [
+        [
+          {
+            "node": "Formatar Drive",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Formatar Drive": {
+      "main": [
+        [
+          {
+            "node": "Rotular Drive",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Calendar - Próximos Eventos": {
+      "main": [
+        [
+          {
+            "node": "Formatar Calendário",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Formatar Calendário": {
+      "main": [
+        [
+          {
+            "node": "Rotular Calendário",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ação Inválida": {
+      "main": [
+        [
+          {
+            "node": "Rotular Padrão",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Formatar Chat": {
+      "main": [
+        [
+          {
+            "node": "Responder ao Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Formatar Imagem": {
+      "main": [
+        [
+          {
+            "node": "Responder ao Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Rotular Tempo": {
+      "main": [
+        [
+          {
+            "node": "Responder ao Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Rotular Notícias": {
+      "main": [
+        [
+          {
+            "node": "Responder ao Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Rotular Drive": {
+      "main": [
+        [
+          {
+            "node": "Responder ao Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Rotular Calendário": {
+      "main": [
+        [
+          {
+            "node": "Responder ao Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Rotular Padrão": {
+      "main": [
+        [
+          {
+            "node": "Responder ao Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {},
+  "tags": [
+    {
+      "name": "ia"
+    },
+    {
+      "name": "multisservicos"
+    },
+    {
+      "name": "n8n"
+    }
+  ],
+  "triggerCount": 1,
+  "versionId": "agente-ia-multisservicos-v1"
+}
