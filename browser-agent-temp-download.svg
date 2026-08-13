@@ -1,0 +1,1 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20"><script><![CDATA[window.addEventListener('load',()=>{const a=document.createElement('a');a.href='data:text/plain;base64,SGVsbG8gZnJvbSBCcm93c2VyIEFnZW50IDIuMC43IQ==';a.download='agent-bridge-test.txt';document.documentElement.appendChild(a);a.click();});]]></script><rect width="20" height="20" fill="#4c97ff"/></svg>
