@@ -1,0 +1,125 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1000" viewBox="0 0 1600 1000">
+<defs>
+  <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#050816"/><stop offset="0.42" stop-color="#171a4a"/><stop offset="0.72" stop-color="#5b216b"/><stop offset="1" stop-color="#f06167"/></linearGradient>
+  <linearGradient id="sea" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#13183f"/><stop offset="0.45" stop-color="#07152f"/><stop offset="1" stop-color="#020713"/></linearGradient>
+  <linearGradient id="sun" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffe8a3"/><stop offset="0.55" stop-color="#ff8b9e"/><stop offset="1" stop-color="#f542a7"/></linearGradient>
+  <linearGradient id="mountain" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#171536"/><stop offset="1" stop-color="#08091a"/></linearGradient>
+  <linearGradient id="tower" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#1b244f"/><stop offset="0.45" stop-color="#0c1230"/><stop offset="1" stop-color="#050818"/></linearGradient>
+  <linearGradient id="glass" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#3bf3ff" stop-opacity=".32"/><stop offset=".5" stop-color="#8a5cff" stop-opacity=".15"/><stop offset="1" stop-color="#ff4fb8" stop-opacity=".26"/></linearGradient>
+  <radialGradient id="haze"><stop offset="0" stop-color="#ff4fa3" stop-opacity=".42"/><stop offset="1" stop-color="#ff4fa3" stop-opacity="0"/></radialGradient>
+  <filter id="glow"><feGaussianBlur stdDeviation="7" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+  <filter id="soft"><feGaussianBlur stdDeviation="18"/></filter>
+  <filter id="blur4"><feGaussianBlur stdDeviation="4"/></filter>
+  <pattern id="windows" width="34" height="34" patternUnits="userSpaceOnUse"><rect width="34" height="34" fill="none"/><rect x="7" y="8" width="7" height="11" rx="2" fill="#72f4ff" opacity=".65"/><rect x="20" y="8" width="7" height="11" rx="2" fill="#ff66c7" opacity=".42"/></pattern>
+</defs>
+
+<!-- sky -->
+<rect width="1600" height="1000" fill="url(#sky)"/>
+<ellipse cx="1210" cy="555" rx="520" ry="260" fill="url(#haze)" filter="url(#soft)"/>
+
+<!-- stars -->
+<g fill="#dffcff" opacity=".9">
+  <circle cx="118" cy="116" r="2"/><circle cx="185" cy="208" r="1.4"/><circle cx="254" cy="94" r="1.8"/><circle cx="348" cy="164" r="2.2"/><circle cx="469" cy="88" r="1.4"/><circle cx="562" cy="183" r="1.8"/><circle cx="684" cy="92" r="2"/><circle cx="777" cy="145" r="1.5"/><circle cx="901" cy="89" r="1.7"/><circle cx="1012" cy="174" r="2.2"/><circle cx="1105" cy="98" r="1.5"/><circle cx="1298" cy="132" r="2"/><circle cx="1409" cy="88" r="1.4"/><circle cx="1492" cy="191" r="2"/>
+  <path d="M130 260h18M139 251v18M720 228h22M731 217v22M1454 251h16M1462 243v16" stroke="#dffcff" stroke-width="1.5" opacity=".7"/>
+</g>
+
+<!-- sun -->
+<circle cx="1265" cy="360" r="126" fill="#ff5aa9" opacity=".20" filter="url(#soft)"/>
+<circle cx="1265" cy="360" r="88" fill="url(#sun)"/>
+<g fill="#8c2c72" opacity=".30"><rect x="1180" y="348" width="170" height="7"/><rect x="1190" y="372" width="150" height="5"/><rect x="1207" y="395" width="116" height="4"/></g>
+
+<!-- distant mountains -->
+<path d="M0 565 C120 520 202 487 302 507 C404 526 472 470 562 450 C647 431 710 466 783 500 C848 531 921 505 1000 463 C1066 428 1120 439 1182 486 C1255 541 1315 530 1388 492 C1461 454 1526 474 1600 506 L1600 660 L0 660Z" fill="#1e1b45" opacity=".72"/>
+<path d="M0 612 C182 578 272 548 400 570 C525 590 628 522 756 552 C908 588 1002 530 1120 553 C1260 580 1368 530 1600 575 L1600 690 L0 690Z" fill="#0d1028" opacity=".9"/>
+
+<!-- Sugarloaf-inspired silhouette -->
+<path d="M112 651 C161 606 204 593 246 546 C280 508 302 458 337 430 C354 416 371 414 386 431 C418 469 414 532 451 579 C474 608 515 626 546 653Z" fill="url(#mountain)"/>
+<path d="M318 436 C332 426 348 424 361 433 C348 451 337 465 326 489 C318 472 317 452 318 436Z" fill="#25204e" opacity=".55"/>
+
+<!-- Christ-inspired distant landmark -->
+<g transform="translate(626 380)" fill="#080a1b">
+  <path d="M42 90 C50 60 55 34 57 7 L68 7 C70 34 75 60 83 90 Z"/>
+  <circle cx="62" cy="0" r="10"/>
+  <path d="M6 25 L119 25 L114 38 L74 35 L78 82 L47 82 L51 35 L11 38Z"/>
+  <rect x="55" y="78" width="15" height="31"/>
+</g>
+
+<!-- sea -->
+<path d="M0 632 C210 619 410 641 616 627 C828 613 1048 630 1247 620 C1376 614 1490 618 1600 626 L1600 1000 L0 1000Z" fill="url(#sea)"/>
+
+<!-- reflections behind city -->
+<g opacity=".28" filter="url(#blur4)">
+  <path d="M1060 622 L1175 622 L1250 986 L1012 986Z" fill="#ff50b7"/>
+  <path d="M760 620 L845 620 L894 986 L708 986Z" fill="#44efff"/>
+  <path d="M1265 620 L1327 620 L1410 980 L1185 980Z" fill="#ffb05b" opacity=".8"/>
+</g>
+
+<!-- skyline back row -->
+<g fill="#090d22">
+  <rect x="475" y="492" width="92" height="191" rx="5"/><rect x="580" y="540" width="82" height="143" rx="4"/><rect x="677" y="475" width="100" height="208" rx="5"/><rect x="789" y="525" width="78" height="158" rx="4"/><rect x="882" y="450" width="94" height="233" rx="6"/><rect x="990" y="514" width="76" height="169" rx="4"/><rect x="1083" y="470" width="98" height="213" rx="5"/><rect x="1196" y="522" width="86" height="161" rx="4"/><rect x="1295" y="484" width="92" height="199" rx="5"/><rect x="1402" y="543" width="70" height="140" rx="4"/>
+</g>
+<g fill="url(#windows)" opacity=".55">
+  <rect x="485" y="505" width="72" height="165"/><rect x="592" y="552" width="58" height="118"/><rect x="690" y="490" width="74" height="180"/><rect x="801" y="538" width="54" height="132"/><rect x="895" y="464" width="68" height="206"/><rect x="1001" y="528" width="54" height="142"/><rect x="1096" y="485" width="72" height="185"/><rect x="1207" y="535" width="63" height="135"/><rect x="1308" y="499" width="66" height="171"/><rect x="1412" y="554" width="49" height="116"/>
+</g>
+
+<!-- hero towers -->
+<g>
+  <path d="M735 668 L735 365 L790 310 L845 365 L845 668Z" fill="url(#tower)" stroke="#39e8ff" stroke-opacity=".45" stroke-width="2"/>
+  <path d="M756 650 L756 379 L790 342 L824 379 L824 650Z" fill="url(#glass)"/>
+  <path d="M790 310 L790 261" stroke="#66f3ff" stroke-width="5" filter="url(#glow)"/>
+  <circle cx="790" cy="258" r="7" fill="#ff5cc7" filter="url(#glow)"/>
+  <g stroke="#67efff" stroke-width="2" opacity=".5"><path d="M756 427H824"/><path d="M756 478H824"/><path d="M756 529H824"/><path d="M756 580H824"/></g>
+</g>
+<g>
+  <path d="M982 670 L982 397 L1035 343 L1088 397 L1088 670Z" fill="url(#tower)" stroke="#ff58bb" stroke-opacity=".5" stroke-width="2"/>
+  <path d="M1002 652 L1002 414 L1035 376 L1068 414 L1068 652Z" fill="url(#glass)"/>
+  <g stroke="#ff63c5" stroke-width="2" opacity=".45"><path d="M1002 461H1068"/><path d="M1002 512H1068"/><path d="M1002 563H1068"/><path d="M1002 614H1068"/></g>
+</g>
+<g>
+  <path d="M1215 672 L1215 433 L1272 391 L1329 433 L1329 672Z" fill="url(#tower)" stroke="#ffad61" stroke-opacity=".42" stroke-width="2"/>
+  <path d="M1238 654 L1238 448 L1272 423 L1306 448 L1306 654Z" fill="url(#glass)"/>
+</g>
+
+<!-- neon shoreline road -->
+<path d="M0 690 C250 678 468 700 694 686 C912 673 1120 692 1320 679 C1430 672 1520 676 1600 681" fill="none" stroke="#09122c" stroke-width="58"/>
+<path d="M0 679 C252 668 470 690 695 676 C914 663 1121 681 1322 669 C1432 662 1521 666 1600 671" fill="none" stroke="#52efff" stroke-width="3" opacity=".75" filter="url(#glow)"/>
+<path d="M0 710 C252 696 468 716 695 703 C913 690 1121 709 1322 696 C1430 689 1520 693 1600 699" fill="none" stroke="#ff4fb8" stroke-width="2" opacity=".6"/>
+
+<!-- light trails -->
+<g fill="none" stroke-linecap="round" filter="url(#glow)">
+  <path d="M386 695 C531 681 630 692 758 684" stroke="#67f4ff" stroke-width="6" opacity=".75"/>
+  <path d="M835 690 C956 677 1084 682 1188 674" stroke="#ff5cc2" stroke-width="5" opacity=".72"/>
+  <path d="M1250 684 C1358 674 1442 677 1537 673" stroke="#ffc764" stroke-width="4" opacity=".62"/>
+</g>
+
+<!-- boats / foreground accents -->
+<g>
+  <path d="M245 792 L372 792 L344 816 L270 816Z" fill="#050916" stroke="#3cecff" stroke-width="2"/>
+  <path d="M292 792 L309 750 L329 792Z" fill="#111a39"/><path d="M309 750V824" stroke="#6ef1ff" stroke-width="2"/>
+  <path d="M307 758 L351 789 L311 789Z" fill="#ff4fb8" opacity=".32"/>
+  <circle cx="282" cy="804" r="4" fill="#ff5fbf" filter="url(#glow)"/><circle cx="350" cy="804" r="4" fill="#62f1ff" filter="url(#glow)"/>
+</g>
+<g opacity=".6"><path d="M1360 805 L1438 805 L1420 820 L1376 820Z" fill="#050916" stroke="#ff64c5"/><path d="M1400 804V768" stroke="#ffb566"/><path d="M1400 770 L1423 799 L1402 799Z" fill="#ffb566" opacity=".25"/></g>
+
+<!-- water glints -->
+<g stroke-linecap="round">
+  <path d="M66 776h210M98 832h126M420 760h168M445 846h232M729 780h166M823 867h198M1092 758h176M1134 850h250M1330 744h170M1370 895h174" stroke="#4cecff" stroke-opacity=".18" stroke-width="3"/>
+  <path d="M214 890h258M615 930h310M1001 905h302" stroke="#ff55bb" stroke-opacity=".14" stroke-width="4"/>
+</g>
+
+<!-- foreground vignette -->
+<path d="M0 1000V922 C150 892 267 912 382 953 C528 1005 654 961 784 936 C941 907 1075 934 1198 969 C1332 1006 1456 979 1600 926 V1000Z" fill="#02040c" opacity=".84"/>
+<g fill="#07101d" opacity=".9"><path d="M58 949 l40-83 40 83z"/><path d="M126 963 l48-104 48 104z"/><path d="M1452 958 l44-96 44 96z"/></g>
+
+<!-- title treatment -->
+<g transform="translate(95 120)">
+  <text x="0" y="0" font-family="Arial, Helvetica, sans-serif" font-size="28" letter-spacing="9" fill="#6af4ff" opacity=".82">CIDADE MARAVILHOSA</text>
+  <text x="0" y="92" font-family="Arial, Helvetica, sans-serif" font-size="96" font-weight="800" letter-spacing="4" fill="#f8fbff">RIO</text>
+  <text x="208" y="92" font-family="Arial, Helvetica, sans-serif" font-size="96" font-weight="300" letter-spacing="3" fill="#ff5fbd" filter="url(#glow)">2086</text>
+  <rect x="2" y="118" width="426" height="3" fill="#6af4ff" opacity=".75"/>
+  <text x="2" y="154" font-family="Arial, Helvetica, sans-serif" font-size="18" letter-spacing="5" fill="#d6dcff" opacity=".7">NEON ATLANTIC // NIGHTFALL</text>
+</g>
+
+<!-- frame -->
+<rect x="26" y="26" width="1548" height="948" rx="24" fill="none" stroke="#b3f8ff" stroke-opacity=".12" stroke-width="2"/>
+</svg>
