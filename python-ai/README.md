@@ -1,26 +1,46 @@
-# Python AI — edição definitiva
+# Python AI — v3
 
-Aplicação web instalável com interface própria, histórico, memória, projetos, arquivos, voz e ferramentas. O frontend é dependency-free para abrir com máxima confiabilidade no GitHub Pages. O backend Python/FastAPI é opcional e oferece SSE, SQLite, uploads, calculadora e conexão com Ollama ou API compatível com OpenAI.
+Aplicação web instalável com chat, histórico local, memória, projetos, arquivos, voz, ferramentas, command palette e múltiplos provedores de IA. O frontend não exige build e funciona diretamente no GitHub Pages.
 
-## Link
-Após o workflow publicar: **https://mt2468.github.io/test-MT/**
+## Abrir
 
-## Provedores de IA
-1. **Automático**: tenta `LanguageModel` (Prompt API do Chrome) e cai para modo local demo.
-2. **Chrome AI**: modelo nativo, quando disponível no navegador/origem.
-3. **Ollama**: por padrão `http://localhost:11434`.
-4. **OpenAI compatível**: endpoint `/v1/chat/completions` e chave salva apenas no navegador.
-5. **Backend Python AI**: servidor opcional desta pasta.
+Quando o GitHub Pages estiver habilitado:
+
+`https://mt2468.github.io/test-MT/`
+
+A raiz do repositório redireciona para `python-ai/web/`, que também é o diretório publicado pelo workflow de Pages.
+
+## Provedores
+
+- **Automático**: tenta Chrome AI e usa demonstração como fallback.
+- **Chrome AI**: Prompt API do navegador, quando disponível.
+- **Ollama**: padrão `http://localhost:11434`.
+- **OpenAI compatível**: endpoint `/v1/chat/completions` configurado no navegador.
+- **Backend Python AI**: FastAPI desta pasta.
+
+Nenhuma chave é versionada. Chaves digitadas na UI ficam apenas no `localStorage` do navegador.
 
 ## Backend
+
 ```bash
-cd backend
+cd python-ai/backend
 python -m venv .venv
-# ative o ambiente
+# Windows: .venv\Scripts\activate
+# Linux/macOS: source .venv/bin/activate
 pip install -r requirements.txt
 uvicorn server:app --reload
 ```
-Variáveis opcionais: `PYTHON_AI_PROVIDER`, `PYTHON_AI_MODEL`, `PYTHON_AI_OLLAMA_URL`, `PYTHON_AI_OPENAI_BASE`, `PYTHON_AI_OPENAI_KEY`, `PYTHON_AI_CORS_ORIGINS`, `PYTHON_AI_DATA`.
+
+Principais variáveis:
+
+- `PYTHON_AI_PROVIDER=ollama|openai`
+- `PYTHON_AI_MODEL=llama3.2:3b`
+- `PYTHON_AI_OLLAMA_URL=http://localhost:11434`
+- `PYTHON_AI_OPENAI_BASE=https://...`
+- `PYTHON_AI_OPENAI_KEY=...`
+- `PYTHON_AI_CORS_ORIGINS=https://mt2468.github.io`
+- `PYTHON_AI_DATA=./data`
 
 ## Segurança
-Nenhuma chave está no repositório. O frontend guarda configuração em `localStorage`. O backend normaliza nomes de upload e limita arquivos a 10 MB. Execução Python arbitrária não foi exposta publicamente: isso exigiria sandbox isolada por contêiner para ser seguro.
+
+Uploads são limitados, nomes são normalizados e apenas arquivos textuais pequenos são indexados como texto. Execução arbitrária de Python não é exposta pelo servidor público: isso só deve ser adicionado com sandbox isolada por contêiner.
