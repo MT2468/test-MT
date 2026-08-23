@@ -1,0 +1,51 @@
+name: Python AI CI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'python-ai/**'
+      - 'index.html'
+      - '.github/workflows/python-ai-ci.yml'
+  pull_request:
+    paths:
+      - 'python-ai/**'
+      - 'index.html'
+      - '.github/workflows/python-ai-ci.yml'
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Check frontend JavaScript
+        run: |
+          node --check python-ai/web/app.js
+          node --check python-ai/web/enhancements.js
+          node --check python-ai/web/sw.js
+      - name: Check backend Python
+        run: python -m py_compile python-ai/backend/server.py
+      - name: Check required web assets
+        run: |
+          test -f python-ai/web/index.html
+          test -f python-ai/web/styles.css
+          test -f python-ai/web/manifest.webmanifest
+          test -f python-ai/web/icon.svg
+          grep -q './styles.css' python-ai/web/index.html
+          grep -q './app.js' python-ai/web/index.html
+          grep -q './enhancements.js' python-ai/web/index.html
+      - name: Smoke-test static serving
+        run: |
+          python -m http.server 4173 -d python-ai/web >/tmp/python-ai-http.log 2>&1 &
+          server_pid=$!
+          trap 'kill $server_pid' EXIT
+          sleep 1
+          curl --fail http://127.0.0.1:4173/
+          curl --fail http://127.0.0.1:4173/app.js >/dev/null
+          curl --fail http://127.0.0.1:4173/styles.css >/dev/null
