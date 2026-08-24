@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import json
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import AsyncIterator
 
 import httpx
@@ -78,6 +78,12 @@ def configured_targets() -> list[ProviderTarget]:
     return result
 
 
+def public_routes(targets: list[ProviderTarget] | None = None) -> list[dict[str, str | bool]]:
+    """Return route metadata safe to expose through the API."""
+    routes = configured_targets() if targets is None else targets
+    return [target.public_dict() for target in routes]
+
+
 async def _stream_ollama(
     client: httpx.AsyncClient,
     target: ProviderTarget,
@@ -136,6 +142,7 @@ async def stream_with_fallback(
     temperature: float = 0.7,
     targets: list[ProviderTarget] | None = None,
     timeout_seconds: float = 180.0,
+    model_override: str | None = None,
 ) -> AsyncIterator[tuple[str, str]]:
     """Yield ``(provider_name, text_delta)`` with safe pre-token fallback.
 
@@ -144,6 +151,10 @@ async def stream_with_fallback(
     propagated so two models are never blended into one response.
     """
     routes = list(targets if targets is not None else configured_targets())
+    if model_override:
+        clean_model = model_override.strip()
+        if clean_model:
+            routes = [replace(target, model=clean_model) for target in routes]
     if not routes:
         raise RuntimeError("Nenhum provedor de IA configurado")
 
