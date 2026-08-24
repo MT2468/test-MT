@@ -82,6 +82,7 @@ jobs:
           grep -q 'hashlib.sha256' python-ai/backend/tool_grants.py
           grep -q 'hmac.compare_digest' python-ai/backend/tool_grants.py
           grep -q 'list_grant_audit' python-ai/backend/tool_grants.py
+          grep -q 'resolve_grant_plan' python-ai/backend/tool_grants.py
           grep -q "_audit_locked('issue', 'success'" python-ai/backend/tool_grants.py
           grep -q "_audit_locked('consume', 'success'" python-ai/backend/tool_grants.py
           grep -q "_audit_locked('revoke'" python-ai/backend/tool_grants.py
@@ -106,7 +107,7 @@ jobs:
           grep -q 'MAX_AGENT_RUNTIME_SECONDS = 5.0' python-ai/backend/agent_executor.py
           grep -q "spec.risk != 'low'" python-ai/backend/agent_executor.py
           grep -q 'spec.mutates_state' python-ai/backend/agent_executor.py
-          grep -q 'resolve_grant(grant_token, name)' python-ai/backend/agent_executor.py
+          grep -q 'resolve_grant_plan(grant_token' python-ai/backend/agent_executor.py
           grep -q 'execute_tool(name, arguments, granted)' python-ai/backend/agent_executor.py
       - name: Check Browser Bridge extension
         run: |
