@@ -21,6 +21,44 @@ async function jsonFetch(url,options={}){
   if(!r.ok)throw new Error(`Backend sync HTTP ${r.status}`);
   return r.status===204?{}:r.json();
 }
+async function removeRemote(base,collection,remoteId){
+  return jsonFetch(apiUrl(base,`/api/${collection}/${encodeURIComponent(remoteId)}`),{method:'DELETE'});
+}
+async function reconcileDeleted(base,state,ctx){
+  const specs=[
+    ['conversations',state.conversations],
+    ['memories',state.memories],
+    ['files',state.files],
+  ];
+  let changed=false;
+  for(const [collection,items] of specs){
+    if(!Array.isArray(items))continue;
+    const localIds=new Set(items.map(x=>x?.id).filter(Boolean));
+    const mapping=ctx.data[collection]||{};
+    for(const [localId,remoteId] of Object.entries(mapping)){
+      if(localIds.has(localId))continue;
+      try{
+        await removeRemote(base,collection,remoteId);
+        delete mapping[localId];
+        changed=true;
+      }catch(e){
+        console.warn(`[Python AI] exclusão remota pendente (${collection}):`,e.message);
+      }
+    }
+  }
+  if(Array.isArray(state.conversations)){
+    const liveMessageIds=new Set();
+    for(const conv of state.conversations){
+      for(const message of conv?.messages||[])if(message?.id)liveMessageIds.add(message.id);
+    }
+    for(const localId of Object.keys(ctx.data.messages||{})){
+      if(liveMessageIds.has(localId))continue;
+      delete ctx.data.messages[localId];
+      changed=true;
+    }
+  }
+  if(changed)persist(ctx);
+}
 async function ensureConversation(base,state,ctx){
   const local=state.conversations?.find(c=>c.id===state.activeConversationId);
   if(!local)return null;
@@ -82,9 +120,11 @@ async function enrichChatRequest(url,options){
   if(!state)return options;
   const body=safeJson(options?.body||'');
   if(!body||!Array.isArray(body.messages))return options;
-  const base=new URL(url,location.href).origin+new URL(url,location.href).pathname.replace(/\/api\/chat\/stream$/,'');
+  const parsed=new URL(url,location.href);
+  const base=parsed.origin+parsed.pathname.replace(/\/api\/chat\/stream$/,'');
   const ctx=bucket(base);
   try{
+    await reconcileDeleted(base,state,ctx);
     const conversationId=await ensureConversation(base,state,ctx);
     await syncMessages(base,state,ctx,conversationId);
     await syncMemories(base,state,ctx);
@@ -110,7 +150,7 @@ async function observeStream(response){
     window.dispatchEvent(new CustomEvent('python-ai-backend-context',{detail:{context:window.PythonAIBackendSync.lastContext||null,provider:window.PythonAIBackendSync.lastProvider||null}}));
   }catch{}
 }
-window.PythonAIBackendSync={version:'1.0.0',lastContext:null,lastProvider:null,clear(){localStorage.removeItem(SYNC_KEY)}};
+window.PythonAIBackendSync={version:'1.1.0',lastContext:null,lastProvider:null,clear(){localStorage.removeItem(SYNC_KEY)}};
 window.fetch=async function(input,options={}){
   const url=typeof input==='string'?input:input?.url||'';
   let next=options;
