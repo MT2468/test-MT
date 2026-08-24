@@ -186,6 +186,78 @@ def _purge_expired_locked(reference: dt.datetime) -> None:
             _audit_locked('expire', 'success', max_uses=record.max_uses, remaining_uses=max(0, record.max_uses - record.uses_consumed))
 
 
+def _validated_tool_names(tool_names: Iterable[str]) -> list[str]:
+    if isinstance(tool_names, (str, bytes)):
+        raise GrantValidationError('tool_names deve ser uma coleção de ferramentas')
+    names = list(tool_names)
+    if not names:
+        raise GrantValidationError('Informe ao menos uma ferramenta')
+    if len(names) > _MAX_USES:
+        raise GrantValidationError(f'Plano excede {_MAX_USES} usos de grant')
+    if any(not isinstance(name, str) or not name for name in names):
+        raise GrantValidationError('Nome de ferramenta inválido')
+    return names
+
+
+def resolve_grant_plan(token: str | None, tool_names: Iterable[str]) -> set[str]:
+    """Reserva atomicamente todos os usos necessários para um plano já validado."""
+    if not token or not isinstance(token, str):
+        _audit('consume_plan', 'denied', error_type='GrantDenied')
+        raise GrantDenied('Grant obrigatório')
+    try:
+        names = _validated_tool_names(tool_names)
+    except GrantValidationError:
+        _audit('consume_plan', 'denied', error_type='GrantValidationError')
+        raise
+
+    token_hash = _hash_token(token)
+    reference = _now()
+    with _LOCK:
+        _purge_expired_locked(reference)
+        record = _GRANTS.get(token_hash)
+        if not record:
+            _audit_locked('consume_plan', 'denied', error_type='GrantDenied')
+            raise GrantDenied('Grant inválido, expirado, esgotado ou revogado')
+
+        unauthorized = next((name for name in names if name not in record.tool_names), None)
+        remaining_before = max(0, record.max_uses - record.uses_consumed)
+        if unauthorized is not None:
+            _audit_locked(
+                'consume_plan',
+                'denied',
+                tool_name=unauthorized,
+                error_type='GrantDenied',
+                max_uses=record.max_uses,
+                remaining_uses=remaining_before,
+            )
+            raise GrantDenied('Grant não autoriza todo o plano')
+        if len(names) > remaining_before:
+            _audit_locked(
+                'consume_plan',
+                'denied',
+                error_type='GrantDenied',
+                max_uses=record.max_uses,
+                remaining_uses=remaining_before,
+            )
+            raise GrantDenied('Grant não possui usos suficientes para o plano')
+
+        consumed = record.uses_consumed + len(names)
+        remaining_after = max(0, record.max_uses - consumed)
+        if consumed >= record.max_uses:
+            _GRANTS.pop(token_hash, None)
+        else:
+            _GRANTS[token_hash] = replace(record, uses_consumed=consumed)
+        for index, name in enumerate(names, start=1):
+            _audit_locked(
+                'consume',
+                'success',
+                tool_name=name,
+                max_uses=record.max_uses,
+                remaining_uses=max(0, remaining_before - index),
+            )
+    return set(record.permissions)
+
+
 def resolve_grant(token: str | None, tool_name: str | None = None) -> set[str]:
     if not token or not isinstance(token, str):
         _audit('consume', 'denied', tool_name=tool_name, error_type='GrantDenied')
