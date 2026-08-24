@@ -65,7 +65,8 @@ create table if not exists files(
   size integer not null,
   mime text,
   text_content text,
-  created_at text not null
+  created_at text not null,
+  updated_at text
 );
 '''
 with connect() as c:
@@ -74,6 +75,10 @@ with connect() as c:
     if 'updated_at' not in memory_columns:
         c.execute('alter table memories add column updated_at text')
     c.execute('update memories set updated_at=created_at where updated_at is null')
+    file_columns = {row['name'] for row in c.execute('pragma table_info(files)').fetchall()}
+    if 'updated_at' not in file_columns:
+        c.execute('alter table files add column updated_at text')
+    c.execute('update files set updated_at=created_at where updated_at is null')
     c.commit()
 
 OPS = {
@@ -121,7 +126,16 @@ def maybe_text(raw: bytes, name: str, mime: str | None):
         return raw.decode('utf-8', errors='replace')[:200_000]
 
 
-app = FastAPI(title='Python AI API', version='3.3.0')
+def validate_upload(raw: bytes):
+    if len(raw) > MAX_UPLOAD:
+        raise HTTPException(413, f'Limite de {MAX_UPLOAD} bytes')
+
+
+def stored_path(fid: str, original: str):
+    return FILES / f'{fid}_{clean_name(original)}'
+
+
+app = FastAPI(title='Python AI API', version='3.4.0')
 app.add_middleware(CORSMiddleware, allow_origins=CORS, allow_credentials=False, allow_methods=['*'], allow_headers=['*'])
 
 
@@ -199,7 +213,7 @@ def health():
     routes = public_routes()
     return {
         'ok': True,
-        'version': '3.3.0',
+        'version': '3.4.0',
         'routes': routes,
         'primary_provider': routes[0]['name'] if routes else None,
         'primary_model': routes[0]['model'] if routes else None,
@@ -370,25 +384,56 @@ def clock():
 @app.get('/api/files')
 def list_files():
     with connect() as c:
-        return [dict(r) for r in c.execute('select id,name,size,mime,created_at from files order by created_at desc')]
+        return [dict(r) for r in c.execute('select id,name,size,mime,created_at,updated_at from files order by updated_at desc, created_at desc')]
 
 
 @app.post('/api/files')
 async def upload(file: UploadFile = File(...)):
     raw = await file.read()
-    if len(raw) > MAX_UPLOAD:
-        raise HTTPException(413, f'Limite de {MAX_UPLOAD} bytes')
+    validate_upload(raw)
     fid = str(uuid.uuid4())
     original = file.filename or 'arquivo'
-    safe = clean_name(original)
-    path = FILES / f'{fid}_{safe}'
+    path = stored_path(fid, original)
     path.write_bytes(raw)
     text_content = maybe_text(raw, original, file.content_type)
     stamp = now()
     with connect() as c:
-        c.execute('insert into files values(?,?,?,?,?,?,?)', (fid, original, str(path), len(raw), file.content_type, text_content, stamp))
+        c.execute(
+            'insert into files(id,name,path,size,mime,text_content,created_at,updated_at) values(?,?,?,?,?,?,?,?)',
+            (fid, original, str(path), len(raw), file.content_type, text_content, stamp, stamp),
+        )
         c.commit()
-    return {'id': fid, 'name': original, 'size': len(raw), 'mime': file.content_type, 'text_indexed': bool(text_content)}
+    return {'id': fid, 'name': original, 'size': len(raw), 'mime': file.content_type, 'text_indexed': bool(text_content), 'created_at': stamp, 'updated_at': stamp}
+
+
+@app.put('/api/files/{fid}')
+async def update_file(fid: str, file: UploadFile = File(...)):
+    raw = await file.read()
+    validate_upload(raw)
+    original = file.filename or 'arquivo'
+    with connect() as c:
+        row = c.execute('select path,created_at from files where id=?', (fid,)).fetchone()
+        if not row:
+            raise HTTPException(404, 'Arquivo não encontrado')
+        old_path = Path(row['path'])
+        created_at = row['created_at']
+
+    path = stored_path(fid, original)
+    tmp_path = path.with_suffix(path.suffix + '.tmp')
+    tmp_path.write_bytes(raw)
+    os.replace(tmp_path, path)
+    if old_path != path:
+        old_path.unlink(missing_ok=True)
+
+    text_content = maybe_text(raw, original, file.content_type)
+    stamp = now()
+    with connect() as c:
+        c.execute(
+            'update files set name=?,path=?,size=?,mime=?,text_content=?,updated_at=? where id=?',
+            (original, str(path), len(raw), file.content_type, text_content, stamp, fid),
+        )
+        c.commit()
+    return {'id': fid, 'name': original, 'size': len(raw), 'mime': file.content_type, 'text_indexed': bool(text_content), 'created_at': created_at, 'updated_at': stamp}
 
 
 @app.get('/api/files/{fid}/text', response_class=PlainTextResponse)
