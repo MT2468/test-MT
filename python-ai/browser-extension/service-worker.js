@@ -1,6 +1,8 @@
-const VERSION = '0.1.0';
+const VERSION = '0.2.0';
 const SITE_PREFIX = 'https://mt2468.github.io/test-MT/python-ai/web/';
 const WEB_PROTOCOLS = new Set(['http:', 'https:']);
+const AUDIT_KEY = 'pythonAiBrowserAudit';
+const AUDIT_LIMIT = 200;
 
 function trustedSender(sender) {
   const url = sender?.url || sender?.tab?.url || '';
@@ -25,6 +27,31 @@ function validateUrl(value) {
   return url.href;
 }
 
+function summarizeArgs(action, args = {}) {
+  if (action === 'tabs.open') return { url: String(args.url || '').slice(0, 500) };
+  if (action === 'tabs.navigate') return { tabId: Number(args.tabId), url: String(args.url || '').slice(0, 500) };
+  if (['tabs.activate', 'tabs.close', 'page.read'].includes(action)) return { tabId: args.tabId == null ? null : Number(args.tabId) };
+  return {};
+}
+
+async function audit(action, status, args = {}, detail = '') {
+  try {
+    const stored = await chrome.storage.local.get(AUDIT_KEY);
+    const entries = Array.isArray(stored[AUDIT_KEY]) ? stored[AUDIT_KEY] : [];
+    entries.push({
+      at: new Date().toISOString(),
+      action,
+      status,
+      args: summarizeArgs(action, args),
+      detail: String(detail || '').slice(0, 300)
+    });
+    if (entries.length > AUDIT_LIMIT) entries.splice(0, entries.length - AUDIT_LIMIT);
+    await chrome.storage.local.set({ [AUDIT_KEY]: entries });
+  } catch {
+    // Falha de auditoria nunca deve quebrar a ação principal.
+  }
+}
+
 async function activeTab() {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   if (!tab?.id) throw new Error('Nenhuma aba ativa encontrada.');
@@ -36,10 +63,20 @@ async function handle(message, sender) {
   const args = message?.args || {};
 
   if (action === 'ping') {
-    return { version: VERSION, capabilities: ['tabs.list', 'tabs.open', 'tabs.activate', 'tabs.navigate', 'tabs.close', 'page.read'] };
+    return {
+      version: VERSION,
+      capabilities: ['tabs.list', 'tabs.open', 'tabs.activate', 'tabs.navigate', 'tabs.close', 'page.read', 'audit.list'],
+      consent: 'granular'
+    };
   }
 
   if (!message?.approved) throw new Error('Ação não autorizada pelo usuário.');
+
+  if (action === 'audit.list') {
+    const stored = await chrome.storage.local.get(AUDIT_KEY);
+    const entries = Array.isArray(stored[AUDIT_KEY]) ? stored[AUDIT_KEY] : [];
+    return entries.slice(-50).reverse();
+  }
 
   if (action === 'tabs.list') {
     const tabs = await chrome.tabs.query({});
@@ -99,8 +136,17 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return false;
   }
 
+  const action = String(message?.action || '');
+  const args = message?.args || {};
+
   handle(message, sender)
-    .then(data => sendResponse({ ok: true, data }))
-    .catch(error => sendResponse({ ok: false, error: error?.message || String(error) }));
+    .then(async data => {
+      if (action !== 'ping' && action !== 'audit.list') await audit(action, 'ok', args);
+      sendResponse({ ok: true, data });
+    })
+    .catch(async error => {
+      if (action !== 'ping' && action !== 'audit.list') await audit(action, 'error', args, error?.message || String(error));
+      sendResponse({ ok: false, error: error?.message || String(error) });
+    });
   return true;
 });
