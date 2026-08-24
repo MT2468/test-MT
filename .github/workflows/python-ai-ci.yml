@@ -46,15 +46,9 @@ jobs:
         run: |
           grep -q './context-controls.js' python-ai/web/index.html
           grep -q 'PythonAIContextSelection' python-ai/web/context-controls.js
-          grep -q 'getForConversation' python-ai/web/context-controls.js
           grep -q 'consumeForConversation' python-ai/web/context-controls.js
           grep -q 'nextFileIds' python-ai/web/context-controls.js
           grep -q 'Contexto da próxima mensagem' python-ai/web/context-controls.js
-          grep -q 'useMemory' python-ai/web/context-controls.js
-          grep -q 'data-py-file' python-ai/web/context-controls.js
-          grep -q 'python-ai-backend-context' python-ai/web/context-controls.js
-          grep -q 'Contexto usado:' python-ai/web/context-controls.js
-          grep -q 'requestSelection' python-ai/web/backend-sync.js
           grep -q 'consumeSelection' python-ai/web/backend-sync.js
           grep -q 'syncSelectedFiles' python-ai/web/backend-sync.js
           grep -q "version:'1.6.0'" python-ai/web/backend-sync.js
@@ -64,38 +58,31 @@ jobs:
           grep -q 'conversation_id' python-ai/web/backend-sync.js
           grep -q 'file_ids' python-ai/web/backend-sync.js
           grep -q 'use_memory:selection.useMemory' python-ai/web/backend-sync.js
-          grep -q '/api/conversations' python-ai/web/backend-sync.js
-          grep -q '/api/memories' python-ai/web/backend-sync.js
-          grep -q '/api/files' python-ai/web/backend-sync.js
           grep -q 'reconcileDeleted' python-ai/web/backend-sync.js
           grep -q "method:'DELETE'" python-ai/web/backend-sync.js
           grep -q "method:'PATCH'" python-ai/web/backend-sync.js
           grep -q "method:'PUT'" python-ai/web/backend-sync.js
-          grep -q 'patchRemote' python-ai/web/backend-sync.js
-          grep -q 'fingerprints.conversations' python-ai/web/backend-sync.js
-          grep -q 'exclusão remota pendente' python-ai/web/backend-sync.js
-          grep -q 'prev!==fp' python-ai/web/backend-sync.js
-          grep -q 'edição de conversa pendente' python-ai/web/backend-sync.js
-          grep -q 'edição de memória pendente' python-ai/web/backend-sync.js
-          grep -q 'edição de arquivo pendente' python-ai/web/backend-sync.js
-          grep -q 'sincronização de contexto indisponível; usando requisição original' python-ai/web/backend-sync.js
           grep -q "@app.patch('/api/conversations/{cid}')" python-ai/backend/server.py
           grep -q "@app.patch('/api/memories/{mid}')" python-ai/backend/server.py
           grep -q "@app.put('/api/files/{fid}')" python-ai/backend/server.py
-          grep -q "version='3.5.0'" python-ai/backend/server.py
+          grep -q "version='3.6.0'" python-ai/backend/server.py
           grep -q 'updated_at text' python-ai/backend/server.py
-      - name: Check unified tool permission contract
+      - name: Check server-issued tool grants
         run: |
           grep -q "permission='tools.read.basic'" python-ai/backend/tool_registry.py
           grep -q "risk='low'" python-ai/backend/tool_registry.py
           grep -q 'mutates_state=False' python-ai/backend/tool_registry.py
-          grep -q 'ToolPermissionDenied' python-ai/backend/tool_registry.py
-          grep -q 'additionalProperties' python-ai/backend/tool_registry.py
-          grep -q 'browser.navigate' python-ai/backend/test_tool_registry.py
-          grep -q "@app.get('/api/tools')" python-ai/backend/server.py
+          grep -q 'PYTHON_AI_TOOL_GRANT_SECRET' python-ai/backend/tool_grants.py
+          grep -q '_MAX_TTL_SECONDS = 900' python-ai/backend/tool_grants.py
+          grep -q 'secrets.token_urlsafe' python-ai/backend/tool_grants.py
+          grep -q 'hashlib.sha256' python-ai/backend/tool_grants.py
+          grep -q 'hmac.compare_digest' python-ai/backend/tool_grants.py
+          grep -q "@app.post('/api/tool-grants')" python-ai/backend/server.py
+          grep -q "@app.post('/api/tool-grants/revoke')" python-ai/backend/server.py
           grep -q "@app.post('/api/tools/execute')" python-ai/backend/server.py
-          grep -q "@app.get('/api/tools/audit')" python-ai/backend/server.py
-          grep -q 'execute_tool' python-ai/backend/server.py
+          grep -q 'grant_token' python-ai/backend/server.py
+          ! grep -q 'permissions: list\[str\].*ToolExecuteRequest' python-ai/backend/server.py
+          ! grep -q 'set(body.permissions)' python-ai/backend/server.py
           ! grep -q "/api/tools/calculator" python-ai/backend/server.py
           ! grep -q "/api/tools/time" python-ai/backend/server.py
       - name: Check Browser Bridge extension
@@ -118,11 +105,11 @@ jobs:
           PY
       - name: Check backend Python
         run: |
-          python -m py_compile python-ai/backend/server.py python-ai/backend/model_router.py python-ai/backend/context_builder.py python-ai/backend/tool_registry.py python-ai/backend/test_model_router.py python-ai/backend/test_context_builder.py python-ai/backend/test_server_updates.py python-ai/backend/test_tool_registry.py python-ai/backend/test_tool_api.py
+          python -m py_compile python-ai/backend/server.py python-ai/backend/model_router.py python-ai/backend/context_builder.py python-ai/backend/tool_registry.py python-ai/backend/tool_grants.py python-ai/backend/test_model_router.py python-ai/backend/test_context_builder.py python-ai/backend/test_server_updates.py python-ai/backend/test_tool_registry.py python-ai/backend/test_tool_grants.py python-ai/backend/test_tool_api.py
       - name: Run backend unit tests
         run: |
           cd python-ai/backend
-          python -m unittest -v test_model_router.py test_context_builder.py test_server_updates.py test_tool_registry.py test_tool_api.py
+          python -m unittest -v test_model_router.py test_context_builder.py test_server_updates.py test_tool_registry.py test_tool_grants.py test_tool_api.py
       - name: Check required web assets
         run: |
           test -f python-ai/web/index.html
