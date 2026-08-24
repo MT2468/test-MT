@@ -29,6 +29,7 @@ jobs:
       - name: Check frontend JavaScript
         run: |
           node --check python-ai/web/app.js
+          node --check python-ai/web/backend-sync.js
           node --check python-ai/web/browser-tools.js
           node --check python-ai/web/enhancements.js
           node --check python-ai/web/secure-storage.js
@@ -40,6 +41,16 @@ jobs:
           grep -q "data.settings.openaiKey=''" python-ai/web/secure-storage.js
           grep -q "u.origin===cfg.origin" python-ai/web/secure-storage.js
           grep -q 'name="referrer" content="no-referrer"' python-ai/web/index.html
+      - name: Check backend context sync contract
+        run: |
+          grep -q './backend-sync.js' python-ai/web/index.html
+          grep -q 'conversation_id' python-ai/web/backend-sync.js
+          grep -q 'file_ids' python-ai/web/backend-sync.js
+          grep -q 'use_memory:true' python-ai/web/backend-sync.js
+          grep -q '/api/conversations' python-ai/web/backend-sync.js
+          grep -q '/api/memories' python-ai/web/backend-sync.js
+          grep -q '/api/files' python-ai/web/backend-sync.js
+          grep -q 'sincronização de contexto indisponível; usando requisição original' python-ai/web/backend-sync.js
       - name: Check Browser Bridge extension
         run: |
           node --check python-ai/browser-extension/bridge.js
@@ -72,6 +83,7 @@ jobs:
           test -f python-ai/web/manifest.webmanifest
           test -f python-ai/web/icon.svg
           test -f python-ai/web/secure-storage.js
+          test -f python-ai/web/backend-sync.js
           grep -q './styles.css' python-ai/web/index.html
           grep -q './app.js' python-ai/web/index.html
           grep -q './enhancements.js' python-ai/web/index.html
@@ -83,5 +95,6 @@ jobs:
           sleep 1
           curl --fail http://127.0.0.1:4173/
           curl --fail http://127.0.0.1:4173/app.js >/dev/null
+          curl --fail http://127.0.0.1:4173/backend-sync.js >/dev/null
           curl --fail http://127.0.0.1:4173/secure-storage.js >/dev/null
           curl --fail http://127.0.0.1:4173/styles.css >/dev/null
