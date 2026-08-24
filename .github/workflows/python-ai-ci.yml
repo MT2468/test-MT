@@ -53,6 +53,11 @@ jobs:
           grep -q 'reconcileDeleted' python-ai/web/backend-sync.js
           grep -q "method:'DELETE'" python-ai/web/backend-sync.js
           grep -q 'exclusão remota pendente' python-ai/web/backend-sync.js
+          grep -q 'fingerprints' python-ai/web/backend-sync.js
+          grep -q 'previousFingerprint!==nextFingerprint' python-ai/web/backend-sync.js
+          grep -q 'edição de memória pendente' python-ai/web/backend-sync.js
+          grep -q 'edição de arquivo pendente' python-ai/web/backend-sync.js
+          grep -q "version:'1.2.0'" python-ai/web/backend-sync.js
           grep -q 'sincronização de contexto indisponível; usando requisição original' python-ai/web/backend-sync.js
       - name: Check Browser Bridge extension
         run: |
