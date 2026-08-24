@@ -50,6 +50,9 @@ jobs:
           grep -q '/api/conversations' python-ai/web/backend-sync.js
           grep -q '/api/memories' python-ai/web/backend-sync.js
           grep -q '/api/files' python-ai/web/backend-sync.js
+          grep -q 'reconcileDeleted' python-ai/web/backend-sync.js
+          grep -q "method:'DELETE'" python-ai/web/backend-sync.js
+          grep -q 'exclusão remota pendente' python-ai/web/backend-sync.js
           grep -q 'sincronização de contexto indisponível; usando requisição original' python-ai/web/backend-sync.js
       - name: Check Browser Bridge extension
         run: |
