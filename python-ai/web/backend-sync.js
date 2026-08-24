@@ -18,9 +18,10 @@ const fingerprint=value=>{
 function bucket(base){
   const all=readSync();
   const key=normalizeBase(base);
-  all.backends[key] ||= {conversations:{},messages:{},memories:{},files:{},fingerprints:{memories:{},files:{}}};
+  all.backends[key] ||= {conversations:{},messages:{},memories:{},files:{},fingerprints:{conversations:{},memories:{},files:{}}};
   const data=all.backends[key];
-  data.fingerprints ||= {memories:{},files:{}};
+  data.fingerprints ||= {conversations:{},memories:{},files:{}};
+  data.fingerprints.conversations ||= {};
   data.fingerprints.memories ||= {};
   data.fingerprints.files ||= {};
   return {all,key,data};
@@ -30,6 +31,11 @@ async function jsonFetch(url,options={}){
   const r=await nativeFetch(url,options);
   if(!r.ok)throw new Error(`Backend sync HTTP ${r.status}`);
   return r.status===204?{}:r.json();
+}
+async function patchRemote(base,collection,remoteId,payload){
+  return jsonFetch(apiUrl(base,`/api/${collection}/${encodeURIComponent(remoteId)}`),{
+    method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)
+  });
 }
 async function removeRemote(base,collection,remoteId){
   return jsonFetch(apiUrl(base,`/api/${collection}/${encodeURIComponent(remoteId)}`),{method:'DELETE'});
@@ -73,12 +79,31 @@ async function reconcileDeleted(base,state,ctx){
 async function ensureConversation(base,state,ctx){
   const local=state.conversations?.find(c=>c.id===state.activeConversationId);
   if(!local)return null;
-  if(ctx.data.conversations[local.id])return ctx.data.conversations[local.id];
+  const payload={title:(local.title||'Novo chat').slice(0,120),project_id:local.projectId||null};
+  const nextFingerprint=fingerprint([payload.title,payload.project_id]);
+  let remoteId=ctx.data.conversations[local.id];
+  const previousFingerprint=ctx.data.fingerprints.conversations[local.id];
+  if(remoteId&&previousFingerprint&&previousFingerprint!==nextFingerprint){
+    try{
+      await patchRemote(base,'conversations',remoteId,payload);
+      ctx.data.fingerprints.conversations[local.id]=nextFingerprint;
+      persist(ctx);
+    }catch(e){
+      console.warn('[Python AI] edição de conversa pendente:',e.message);
+    }
+    return remoteId;
+  }
+  if(remoteId){
+    if(!previousFingerprint){ctx.data.fingerprints.conversations[local.id]=nextFingerprint;persist(ctx)}
+    return remoteId;
+  }
   const remote=await jsonFetch(apiUrl(base,'/api/conversations'),{
-    method:'POST',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({title:(local.title||'Novo chat').slice(0,120),project_id:local.projectId||null})
+    method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)
   });
-  ctx.data.conversations[local.id]=remote.id;persist(ctx);return remote.id;
+  ctx.data.conversations[local.id]=remote.id;
+  ctx.data.fingerprints.conversations[local.id]=nextFingerprint;
+  persist(ctx);
+  return remote.id;
 }
 async function syncMessages(base,state,ctx,remoteConversationId){
   const local=state.conversations?.find(c=>c.id===state.activeConversationId);
@@ -96,16 +121,17 @@ async function syncMessages(base,state,ctx,remoteConversationId){
 async function syncMemories(base,state,ctx){
   for(const memory of state.memories||[]){
     if(!memory?.id||!memory.title?.trim()||!memory.content?.trim())continue;
-    const nextFingerprint=fingerprint([memory.title,memory.content]);
-    let remoteId=ctx.data.memories[memory.id];
+    const payload={title:memory.title.slice(0,120),content:memory.content.slice(0,20000)};
+    const nextFingerprint=fingerprint([payload.title,payload.content]);
+    const remoteId=ctx.data.memories[memory.id];
     const previousFingerprint=ctx.data.fingerprints.memories[memory.id];
     if(remoteId&&previousFingerprint&&previousFingerprint!==nextFingerprint){
       try{
-        await removeRemote(base,'memories',remoteId);
-        delete ctx.data.memories[memory.id];
-        delete ctx.data.fingerprints.memories[memory.id];
-        remoteId=null;
-      }catch(e){console.warn('[Python AI] edição de memória pendente:',e.message);continue}
+        await patchRemote(base,'memories',remoteId,payload);
+        ctx.data.fingerprints.memories[memory.id]=nextFingerprint;
+        persist(ctx);
+      }catch(e){console.warn('[Python AI] edição de memória pendente:',e.message)}
+      continue;
     }
     if(remoteId){
       if(!previousFingerprint){ctx.data.fingerprints.memories[memory.id]=nextFingerprint;persist(ctx)}
@@ -113,8 +139,7 @@ async function syncMemories(base,state,ctx){
     }
     try{
       const remote=await jsonFetch(apiUrl(base,'/api/memories'),{
-        method:'POST',headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({title:memory.title.slice(0,120),content:memory.content.slice(0,20000)})
+        method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)
       });
       ctx.data.memories[memory.id]=remote.id;
       ctx.data.fingerprints.memories[memory.id]=nextFingerprint;
@@ -193,7 +218,7 @@ async function observeStream(response){
     window.dispatchEvent(new CustomEvent('python-ai-backend-context',{detail:{context:window.PythonAIBackendSync.lastContext||null,provider:window.PythonAIBackendSync.lastProvider||null}}));
   }catch{}
 }
-window.PythonAIBackendSync={version:'1.2.0',lastContext:null,lastProvider:null,clear(){localStorage.removeItem(SYNC_KEY)}};
+window.PythonAIBackendSync={version:'1.3.0',lastContext:null,lastProvider:null,clear(){localStorage.removeItem(SYNC_KEY)}};
 window.fetch=async function(input,options={}){
   const url=typeof input==='string'?input:input?.url||'';
   let next=options;
