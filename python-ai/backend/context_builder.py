@@ -40,6 +40,20 @@ def _latest_user_text(messages: Iterable[dict]) -> str:
     return ""
 
 
+def _message_key(item: dict) -> tuple[str, str]:
+    return str(item.get("role") or ""), str(item.get("content") or "").strip()
+
+
+def _history_without_duplicates(history: list[dict], messages: list[dict]) -> list[dict]:
+    """Drop stored messages that are already present in the explicit request.
+
+    The frontend may send recent chat messages while also passing conversation_id.
+    Keeping both would waste context budget and can over-weight repeated user text.
+    """
+    explicit = {_message_key(item) for item in messages if item.get("content")}
+    return [item for item in history if _message_key(item) not in explicit]
+
+
 def build_context_messages(
     messages: list[dict],
     memories: list[dict] | None = None,
@@ -58,7 +72,7 @@ def build_context_messages(
     query_terms = _terms(query)
     memories = memories or []
     files = files or []
-    history = history or []
+    history = _history_without_duplicates(history or [], messages)
 
     ranked_memories = sorted(
         memories,
