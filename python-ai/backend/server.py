@@ -13,6 +13,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import PlainTextResponse, StreamingResponse
 from pydantic import BaseModel, Field
 
+from context_builder import build_context_messages
 from model_router import configured_targets, discover_models, public_routes, stream_with_fallback
 
 DATA = Path(os.getenv('PYTHON_AI_DATA', './data')).resolve()
@@ -114,7 +115,7 @@ def maybe_text(raw: bytes, name: str, mime: str | None):
         return raw.decode('utf-8', errors='replace')[:200_000]
 
 
-app = FastAPI(title='Python AI API', version='3.1.0')
+app = FastAPI(title='Python AI API', version='3.2.0')
 app.add_middleware(CORSMiddleware, allow_origins=CORS, allow_credentials=False, allow_methods=['*'], allow_headers=['*'])
 
 
@@ -122,6 +123,9 @@ class ChatRequest(BaseModel):
     messages: list[dict]
     model: str | None = Field(default=None, max_length=200)
     temperature: float = Field(default=.7, ge=0, le=2)
+    conversation_id: str | None = Field(default=None, max_length=100)
+    file_ids: list[str] = Field(default_factory=list, max_length=20)
+    use_memory: bool = True
 
 
 class MemoryRequest(BaseModel):
@@ -139,9 +143,40 @@ class MessageRequest(BaseModel):
     content: str = Field(min_length=1, max_length=200_000)
 
 
-async def stream_model(req: ChatRequest):
+def load_chat_context(req: ChatRequest) -> tuple[list[dict], dict]:
+    memories: list[dict] = []
+    history: list[dict] = []
+    selected_files: list[dict] = []
+
+    with connect() as c:
+        if req.use_memory:
+            memories = [dict(r) for r in c.execute('select * from memories order by created_at desc').fetchall()]
+
+        if req.conversation_id:
+            if not c.execute('select 1 from conversations where id=?', (req.conversation_id,)).fetchone():
+                raise HTTPException(404, 'Conversa não encontrada')
+            history = [dict(r) for r in c.execute(
+                'select role,content,created_at from messages where conversation_id=? order by created_at',
+                (req.conversation_id,),
+            ).fetchall()]
+
+        if req.file_ids:
+            placeholders = ','.join('?' for _ in req.file_ids)
+            selected_files = [dict(r) for r in c.execute(
+                f'select id,name,text_content,created_at from files where id in ({placeholders})',
+                tuple(req.file_ids),
+            ).fetchall()]
+            found = {row['id'] for row in selected_files}
+            missing = [fid for fid in req.file_ids if fid not in found]
+            if missing:
+                raise HTTPException(404, 'Um ou mais arquivos selecionados não foram encontrados')
+
+    return build_context_messages(req.messages, memories, selected_files, history)
+
+
+async def stream_model(messages: list[dict], req: ChatRequest):
     async for provider, piece in stream_with_fallback(
-        req.messages,
+        messages,
         temperature=req.temperature,
         model_override=req.model,
     ):
@@ -153,7 +188,7 @@ def health():
     routes = public_routes()
     return {
         'ok': True,
-        'version': '3.1.0',
+        'version': '3.2.0',
         'routes': routes,
         'primary_provider': routes[0]['name'] if routes else None,
         'primary_model': routes[0]['model'] if routes else None,
@@ -186,10 +221,13 @@ async def models():
 
 @app.post('/api/chat/stream')
 async def chat(req: ChatRequest):
+    prepared_messages, context_meta = load_chat_context(req)
+
     async def event_stream():
         active_provider = None
         try:
-            async for provider, piece in stream_model(req):
+            yield 'data: ' + json.dumps({'context': context_meta}, ensure_ascii=False) + '\n\n'
+            async for provider, piece in stream_model(prepared_messages, req):
                 if provider != active_provider:
                     active_provider = provider
                     yield 'data: ' + json.dumps({'provider': provider}, ensure_ascii=False) + '\n\n'
