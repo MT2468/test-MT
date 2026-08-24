@@ -51,6 +51,21 @@ def _assert_agent_safe_tool(name: str) -> None:
         raise AgentSafetyError('O agente só pode usar ferramentas low-risk e somente leitura')
 
 
+def _preflight_plan(steps: list[dict[str, Any]], max_steps: int) -> list[tuple[str, dict[str, Any]]]:
+    """Valida o plano inteiro antes de consumir grants ou executar qualquer ferramenta."""
+    if not isinstance(steps, list) or not steps:
+        raise AgentValidationError('Informe ao menos um passo')
+    if len(steps) > max_steps:
+        raise AgentValidationError('Plano excede o limite de passos')
+
+    prepared: list[tuple[str, dict[str, Any]]] = []
+    for raw_step in steps:
+        name, arguments = _validate_step(raw_step)
+        _assert_agent_safe_tool(name)
+        prepared.append((name, arguments))
+    return prepared
+
+
 def run_agent_plan(
     steps: list[dict[str, Any]],
     grant_token: str,
@@ -62,20 +77,15 @@ def run_agent_plan(
         raise AgentValidationError(f'max_steps deve estar entre 1 e {MAX_AGENT_STEPS}')
     if isinstance(max_runtime_seconds, bool) or not isinstance(max_runtime_seconds, (int, float)) or not 0 < max_runtime_seconds <= MAX_AGENT_RUNTIME_SECONDS:
         raise AgentValidationError(f'max_runtime_seconds deve ser maior que 0 e no máximo {MAX_AGENT_RUNTIME_SECONDS}')
-    if not isinstance(steps, list) or not steps:
-        raise AgentValidationError('Informe ao menos um passo')
-    if len(steps) > max_steps:
-        raise AgentValidationError('Plano excede o limite de passos')
     if not isinstance(grant_token, str) or len(grant_token) < 20:
         raise AgentValidationError('grant_token inválido')
 
+    prepared_steps = _preflight_plan(steps, max_steps)
     started = time.monotonic()
     results: list[dict[str, Any]] = []
-    for index, raw_step in enumerate(steps):
+    for index, (name, arguments) in enumerate(prepared_steps):
         if time.monotonic() - started > max_runtime_seconds:
             raise AgentTimeoutError('Tempo máximo do agente excedido')
-        name, arguments = _validate_step(raw_step)
-        _assert_agent_safe_tool(name)
         granted = resolve_grant(grant_token, name)
         output = execute_tool(name, arguments, granted)
         results.append({'step': index + 1, **output})
