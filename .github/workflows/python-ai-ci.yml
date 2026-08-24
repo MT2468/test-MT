@@ -82,9 +82,9 @@ jobs:
           grep -q "@app.patch('/api/conversations/{cid}')" python-ai/backend/server.py
           grep -q "@app.patch('/api/memories/{mid}')" python-ai/backend/server.py
           grep -q "@app.put('/api/files/{fid}')" python-ai/backend/server.py
-          grep -q "version='3.4.0'" python-ai/backend/server.py
+          grep -q "version='3.5.0'" python-ai/backend/server.py
           grep -q 'updated_at text' python-ai/backend/server.py
-      - name: Check tool permission contract
+      - name: Check unified tool permission contract
         run: |
           grep -q "permission='tools.read.basic'" python-ai/backend/tool_registry.py
           grep -q "risk='low'" python-ai/backend/tool_registry.py
@@ -92,6 +92,12 @@ jobs:
           grep -q 'ToolPermissionDenied' python-ai/backend/tool_registry.py
           grep -q 'additionalProperties' python-ai/backend/tool_registry.py
           grep -q 'browser.navigate' python-ai/backend/test_tool_registry.py
+          grep -q "@app.get('/api/tools')" python-ai/backend/server.py
+          grep -q "@app.post('/api/tools/execute')" python-ai/backend/server.py
+          grep -q "@app.get('/api/tools/audit')" python-ai/backend/server.py
+          grep -q 'execute_tool' python-ai/backend/server.py
+          ! grep -q "/api/tools/calculator" python-ai/backend/server.py
+          ! grep -q "/api/tools/time" python-ai/backend/server.py
       - name: Check Browser Bridge extension
         run: |
           node --check python-ai/browser-extension/bridge.js
@@ -112,11 +118,11 @@ jobs:
           PY
       - name: Check backend Python
         run: |
-          python -m py_compile python-ai/backend/server.py python-ai/backend/model_router.py python-ai/backend/context_builder.py python-ai/backend/tool_registry.py python-ai/backend/test_model_router.py python-ai/backend/test_context_builder.py python-ai/backend/test_server_updates.py python-ai/backend/test_tool_registry.py
+          python -m py_compile python-ai/backend/server.py python-ai/backend/model_router.py python-ai/backend/context_builder.py python-ai/backend/tool_registry.py python-ai/backend/test_model_router.py python-ai/backend/test_context_builder.py python-ai/backend/test_server_updates.py python-ai/backend/test_tool_registry.py python-ai/backend/test_tool_api.py
       - name: Run backend unit tests
         run: |
           cd python-ai/backend
-          python -m unittest -v test_model_router.py test_context_builder.py test_server_updates.py test_tool_registry.py
+          python -m unittest -v test_model_router.py test_context_builder.py test_server_updates.py test_tool_registry.py test_tool_api.py
       - name: Check required web assets
         run: |
           test -f python-ai/web/index.html
