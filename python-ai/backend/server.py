@@ -123,7 +123,7 @@ def stored_path(fid: str, original: str):
     return FILES / f'{fid}_{clean_name(original)}'
 
 
-app = FastAPI(title='Python AI API', version='3.6.0')
+app = FastAPI(title='Python AI API', version='3.7.0')
 app.add_middleware(CORSMiddleware, allow_origins=CORS, allow_credentials=False, allow_methods=['*'], allow_headers=['*'])
 
 
@@ -158,7 +158,9 @@ class MessageRequest(BaseModel):
 
 class ToolGrantRequest(BaseModel):
     permissions: list[str] = Field(min_length=1, max_length=10)
+    tool_names: list[str] = Field(min_length=1, max_length=10)
     ttl_seconds: int = Field(default=300, ge=30, le=900)
+    max_uses: int = Field(default=1, ge=1, le=100)
 
 
 class ToolGrantRevokeRequest(BaseModel):
@@ -199,7 +201,7 @@ async def stream_model(messages: list[dict], req: ChatRequest):
 @app.get('/api/health')
 def health():
     routes = public_routes()
-    return {'ok': True, 'version': '3.6.0', 'routes': routes, 'primary_provider': routes[0]['name'] if routes else None, 'primary_model': routes[0]['model'] if routes else None}
+    return {'ok': True, 'version': '3.7.0', 'routes': routes, 'primary_provider': routes[0]['name'] if routes else None, 'primary_model': routes[0]['model'] if routes else None}
 
 
 @app.get('/api/models')
@@ -249,7 +251,13 @@ def tools():
 @app.post('/api/tool-grants')
 def tool_grant_issue(body: ToolGrantRequest, x_tool_grant_secret: str | None = Header(default=None)):
     try:
-        return issue_grant(body.permissions, body.ttl_seconds, x_tool_grant_secret)
+        return issue_grant(
+            body.permissions,
+            body.ttl_seconds,
+            x_tool_grant_secret,
+            tool_names=body.tool_names,
+            max_uses=body.max_uses,
+        )
     except GrantUnavailable as exc:
         raise HTTPException(503, str(exc)) from exc
     except GrantDenied as exc:
@@ -269,7 +277,7 @@ def tool_grant_revoke(body: ToolGrantRevokeRequest):
 @app.post('/api/tools/execute')
 def tool_execute(body: ToolExecuteRequest):
     try:
-        granted = resolve_grant(body.grant_token)
+        granted = resolve_grant(body.grant_token, body.name)
         return execute_tool(body.name, body.arguments, granted)
     except GrantDenied as exc:
         raise HTTPException(403, str(exc)) from exc
