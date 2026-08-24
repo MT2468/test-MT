@@ -6,8 +6,10 @@ import hmac
 import os
 import secrets
 import threading
+import uuid
+from collections import deque
 from dataclasses import dataclass, replace
-from typing import Iterable
+from typing import Any, Iterable
 
 
 class GrantError(Exception):
@@ -39,9 +41,11 @@ class GrantRecord:
 
 _MAX_TTL_SECONDS = 900
 _MAX_USES = 100
+_AUDIT_LIMIT = 200
 _ALLOWED_PERMISSIONS = frozenset({'tools.read.basic'})
 _ALLOWED_TOOL_NAMES = frozenset({'calculator.evaluate', 'time.now'})
 _GRANTS: dict[str, GrantRecord] = {}
+_GRANT_AUDIT: deque[dict[str, Any]] = deque(maxlen=_AUDIT_LIMIT)
 _LOCK = threading.Lock()
 
 
@@ -57,12 +61,63 @@ def _configured_secret() -> str:
     return os.getenv('PYTHON_AI_TOOL_GRANT_SECRET', '').strip()
 
 
+def _audit_locked(
+    action: str,
+    status: str,
+    *,
+    tool_name: str | None = None,
+    error_type: str | None = None,
+    max_uses: int | None = None,
+    remaining_uses: int | None = None,
+) -> None:
+    # Nunca registrar token, hash do token, segredo, permissões arbitrárias, argumentos ou resultados.
+    _GRANT_AUDIT.append({
+        'id': str(uuid.uuid4()),
+        'timestamp': _now().isoformat(),
+        'action': action,
+        'status': status,
+        'tool_name': tool_name,
+        'error_type': error_type,
+        'max_uses': max_uses,
+        'remaining_uses': remaining_uses,
+    })
+
+
+def _audit(
+    action: str,
+    status: str,
+    *,
+    tool_name: str | None = None,
+    error_type: str | None = None,
+    max_uses: int | None = None,
+    remaining_uses: int | None = None,
+) -> None:
+    with _LOCK:
+        _audit_locked(
+            action,
+            status,
+            tool_name=tool_name,
+            error_type=error_type,
+            max_uses=max_uses,
+            remaining_uses=remaining_uses,
+        )
+
+
+def list_grant_audit(limit: int = 50) -> list[dict[str, Any]]:
+    if isinstance(limit, bool) or not isinstance(limit, int) or limit < 1 or limit > _AUDIT_LIMIT:
+        raise GrantValidationError(f'limit deve estar entre 1 e {_AUDIT_LIMIT}')
+    with _LOCK:
+        return [dict(event) for event in list(_GRANT_AUDIT)[-limit:]][::-1]
+
+
 def _check_secret(presented_secret: str | None) -> None:
     configured = _configured_secret()
     if not configured:
+        _audit('issue', 'denied', error_type='GrantUnavailable')
         raise GrantUnavailable('Emissão de grants desativada: configure PYTHON_AI_TOOL_GRANT_SECRET')
     candidate = (presented_secret or '').strip()
     if not candidate or not hmac.compare_digest(candidate, configured):
+        _audit('issue', 'denied', error_type='GrantDenied')
         raise GrantDenied('Credencial de autorização inválida')
 
 
@@ -74,26 +129,26 @@ def issue_grant(
     tool_names: Iterable[str] | None = None,
     max_uses: int = 1,
 ) -> dict:
-    """Issue a short-lived grant.
-
-    The keyword-only scope arguments keep the existing server API compatible while
-    making grants single-use by default. A future API revision can expose narrower
-    tool_names without weakening existing callers.
-    """
     _check_secret(presented_secret)
     requested_permissions = frozenset(permissions)
     requested_tools = frozenset(tool_names if tool_names is not None else _ALLOWED_TOOL_NAMES)
     if not requested_permissions:
+        _audit('issue', 'denied', error_type='GrantValidationError')
         raise GrantValidationError('Informe ao menos uma permissão')
     if not requested_tools:
+        _audit('issue', 'denied', error_type='GrantValidationError')
         raise GrantValidationError('Informe ao menos uma ferramenta')
     if requested_permissions - _ALLOWED_PERMISSIONS:
+        _audit('issue', 'denied', error_type='GrantValidationError')
         raise GrantValidationError('Permissão não disponível para grant')
     if requested_tools - _ALLOWED_TOOL_NAMES:
+        _audit('issue', 'denied', error_type='GrantValidationError')
         raise GrantValidationError('Ferramenta não disponível para grant')
     if isinstance(ttl_seconds, bool) or not isinstance(ttl_seconds, int) or ttl_seconds < 30 or ttl_seconds > _MAX_TTL_SECONDS:
+        _audit('issue', 'denied', error_type='GrantValidationError')
         raise GrantValidationError(f'ttl_seconds deve estar entre 30 e {_MAX_TTL_SECONDS}')
     if isinstance(max_uses, bool) or not isinstance(max_uses, int) or max_uses < 1 or max_uses > _MAX_USES:
+        _audit('issue', 'denied', error_type='GrantValidationError')
         raise GrantValidationError(f'max_uses deve estar entre 1 e {_MAX_USES}')
 
     created_at = _now()
@@ -111,6 +166,7 @@ def issue_grant(
     with _LOCK:
         _purge_expired_locked(created_at)
         _GRANTS[token_hash] = record
+        _audit_locked('issue', 'success', max_uses=max_uses, remaining_uses=max_uses)
     return {
         'grant_token': token,
         'permissions': sorted(requested_permissions),
@@ -125,18 +181,17 @@ def issue_grant(
 def _purge_expired_locked(reference: dt.datetime) -> None:
     expired = [key for key, record in _GRANTS.items() if record.expires_at <= reference]
     for key in expired:
-        _GRANTS.pop(key, None)
+        record = _GRANTS.pop(key, None)
+        if record:
+            _audit_locked('expire', 'success', max_uses=record.max_uses, remaining_uses=max(0, record.max_uses - record.uses_consumed))
 
 
 def resolve_grant(token: str | None, tool_name: str | None = None) -> set[str]:
-    """Resolve and consume one grant use atomically.
-
-    tool_name is optional for compatibility with the current server. When supplied,
-    scope is enforced. Regardless, every successful resolution consumes one use.
-    """
     if not token or not isinstance(token, str):
+        _audit('consume', 'denied', tool_name=tool_name, error_type='GrantDenied')
         raise GrantDenied('Grant obrigatório')
     if tool_name is not None and (not isinstance(tool_name, str) or not tool_name):
+        _audit('consume', 'denied', error_type='GrantDenied')
         raise GrantDenied('Ferramenta inválida para o grant')
 
     token_hash = _hash_token(token)
@@ -145,28 +200,42 @@ def resolve_grant(token: str | None, tool_name: str | None = None) -> set[str]:
         _purge_expired_locked(reference)
         record = _GRANTS.get(token_hash)
         if not record:
+            _audit_locked('consume', 'denied', tool_name=tool_name, error_type='GrantDenied')
             raise GrantDenied('Grant inválido, expirado, esgotado ou revogado')
         if tool_name is not None and tool_name not in record.tool_names:
+            _audit_locked('consume', 'denied', tool_name=tool_name, error_type='GrantDenied', max_uses=record.max_uses, remaining_uses=record.max_uses - record.uses_consumed)
             raise GrantDenied('Grant não autoriza esta ferramenta')
         if record.uses_consumed >= record.max_uses:
             _GRANTS.pop(token_hash, None)
+            _audit_locked('consume', 'denied', tool_name=tool_name, error_type='GrantDenied', max_uses=record.max_uses, remaining_uses=0)
             raise GrantDenied('Grant esgotado')
         consumed = record.uses_consumed + 1
+        remaining = max(0, record.max_uses - consumed)
         if consumed >= record.max_uses:
             _GRANTS.pop(token_hash, None)
         else:
             _GRANTS[token_hash] = replace(record, uses_consumed=consumed)
+        _audit_locked('consume', 'success', tool_name=tool_name, max_uses=record.max_uses, remaining_uses=remaining)
     return set(record.permissions)
 
 
 def revoke_grant(token: str | None) -> bool:
     if not token or not isinstance(token, str):
+        _audit('revoke', 'denied', error_type='GrantValidationError')
         raise GrantValidationError('grant_token é obrigatório')
     token_hash = _hash_token(token)
     with _LOCK:
-        return _GRANTS.pop(token_hash, None) is not None
+        record = _GRANTS.pop(token_hash, None)
+        _audit_locked(
+            'revoke',
+            'success' if record is not None else 'not_found',
+            max_uses=record.max_uses if record else None,
+            remaining_uses=max(0, record.max_uses - record.uses_consumed) if record else None,
+        )
+        return record is not None
 
 
 def clear_grants_for_tests() -> None:
     with _LOCK:
         _GRANTS.clear()
+        _GRANT_AUDIT.clear()
