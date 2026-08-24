@@ -27,8 +27,27 @@ jobs:
       - name: Check frontend JavaScript
         run: |
           node --check python-ai/web/app.js
+          node --check python-ai/web/browser-tools.js
           node --check python-ai/web/enhancements.js
           node --check python-ai/web/sw.js
+      - name: Check Browser Bridge extension
+        run: |
+          node --check python-ai/browser-extension/bridge.js
+          node --check python-ai/browser-extension/service-worker.js
+          python -m json.tool python-ai/browser-extension/manifest.json >/dev/null
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          manifest = json.loads(Path('python-ai/browser-extension/manifest.json').read_text())
+          assert manifest['manifest_version'] == 3
+          assert manifest['version'] == '0.2.0'
+          assert 'storage' in manifest['permissions']
+          worker = Path('python-ai/browser-extension/service-worker.js').read_text()
+          bridge = Path('python-ai/browser-extension/bridge.js').read_text()
+          assert "audit.list" in worker
+          assert "consent: 'granular'" in worker
+          assert 'page.read' in bridge and 'window.confirm' in bridge
+          PY
       - name: Check backend Python
         run: python -m py_compile python-ai/backend/server.py
       - name: Check required web assets
