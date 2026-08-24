@@ -8,12 +8,22 @@ const readSync=()=>safeJson(localStorage.getItem(SYNC_KEY)||'null')||{backends:{
 const writeSync=data=>localStorage.setItem(SYNC_KEY,JSON.stringify(data));
 const normalizeBase=url=>String(url||'').replace(/\/$/,'');
 const apiUrl=(base,path)=>normalizeBase(base)+path;
+const fingerprint=value=>{
+  const text=typeof value==='string'?value:JSON.stringify(value);
+  let hash=2166136261;
+  for(let i=0;i<text.length;i++){hash^=text.charCodeAt(i);hash=Math.imul(hash,16777619)}
+  return (hash>>>0).toString(36);
+};
 
 function bucket(base){
   const all=readSync();
   const key=normalizeBase(base);
-  all.backends[key] ||= {conversations:{},messages:{},memories:{},files:{}};
-  return {all,key,data:all.backends[key]};
+  all.backends[key] ||= {conversations:{},messages:{},memories:{},files:{},fingerprints:{memories:{},files:{}}};
+  const data=all.backends[key];
+  data.fingerprints ||= {memories:{},files:{}};
+  data.fingerprints.memories ||= {};
+  data.fingerprints.files ||= {};
+  return {all,key,data};
 }
 function persist(ctx){writeSync(ctx.all)}
 async function jsonFetch(url,options={}){
@@ -40,6 +50,7 @@ async function reconcileDeleted(base,state,ctx){
       try{
         await removeRemote(base,collection,remoteId);
         delete mapping[localId];
+        if(ctx.data.fingerprints?.[collection])delete ctx.data.fingerprints[collection][localId];
         changed=true;
       }catch(e){
         console.warn(`[Python AI] exclusão remota pendente (${collection}):`,e.message);
@@ -84,13 +95,30 @@ async function syncMessages(base,state,ctx,remoteConversationId){
 }
 async function syncMemories(base,state,ctx){
   for(const memory of state.memories||[]){
-    if(!memory?.id||ctx.data.memories[memory.id]||!memory.title?.trim()||!memory.content?.trim())continue;
+    if(!memory?.id||!memory.title?.trim()||!memory.content?.trim())continue;
+    const nextFingerprint=fingerprint([memory.title,memory.content]);
+    let remoteId=ctx.data.memories[memory.id];
+    const previousFingerprint=ctx.data.fingerprints.memories[memory.id];
+    if(remoteId&&previousFingerprint&&previousFingerprint!==nextFingerprint){
+      try{
+        await removeRemote(base,'memories',remoteId);
+        delete ctx.data.memories[memory.id];
+        delete ctx.data.fingerprints.memories[memory.id];
+        remoteId=null;
+      }catch(e){console.warn('[Python AI] edição de memória pendente:',e.message);continue}
+    }
+    if(remoteId){
+      if(!previousFingerprint){ctx.data.fingerprints.memories[memory.id]=nextFingerprint;persist(ctx)}
+      continue;
+    }
     try{
       const remote=await jsonFetch(apiUrl(base,'/api/memories'),{
         method:'POST',headers:{'Content-Type':'application/json'},
         body:JSON.stringify({title:memory.title.slice(0,120),content:memory.content.slice(0,20000)})
       });
-      ctx.data.memories[memory.id]=remote.id;persist(ctx);
+      ctx.data.memories[memory.id]=remote.id;
+      ctx.data.fingerprints.memories[memory.id]=nextFingerprint;
+      persist(ctx);
     }catch(e){console.warn('[Python AI] memória não sincronizada:',e.message)}
   }
 }
@@ -101,14 +129,29 @@ async function syncProjectFiles(base,state,ctx){
   const remoteIds=[];
   for(const file of state.files||[]){
     if(file.projectId!==projectId||!file.text?.trim())continue;
+    const nextFingerprint=fingerprint([file.name,file.type,file.text]);
     let remoteId=ctx.data.files[file.id];
+    const previousFingerprint=ctx.data.fingerprints.files[file.id];
+    if(remoteId&&previousFingerprint&&previousFingerprint!==nextFingerprint){
+      try{
+        await removeRemote(base,'files',remoteId);
+        delete ctx.data.files[file.id];
+        delete ctx.data.fingerprints.files[file.id];
+        remoteId=null;
+      }catch(e){console.warn('[Python AI] edição de arquivo pendente:',e.message);continue}
+    }
     if(!remoteId){
       try{
         const form=new FormData();
         form.append('file',new Blob([file.text],{type:file.type||'text/plain'}),file.name||'arquivo.txt');
         const remote=await jsonFetch(apiUrl(base,'/api/files'),{method:'POST',body:form});
-        remoteId=remote.id;ctx.data.files[file.id]=remoteId;persist(ctx);
+        remoteId=remote.id;
+        ctx.data.files[file.id]=remoteId;
+        ctx.data.fingerprints.files[file.id]=nextFingerprint;
+        persist(ctx);
       }catch(e){console.warn('[Python AI] arquivo não sincronizado:',e.message);continue}
+    }else if(!previousFingerprint){
+      ctx.data.fingerprints.files[file.id]=nextFingerprint;persist(ctx);
     }
     remoteIds.push(remoteId);
     if(remoteIds.length>=20)break;
@@ -150,7 +193,7 @@ async function observeStream(response){
     window.dispatchEvent(new CustomEvent('python-ai-backend-context',{detail:{context:window.PythonAIBackendSync.lastContext||null,provider:window.PythonAIBackendSync.lastProvider||null}}));
   }catch{}
 }
-window.PythonAIBackendSync={version:'1.1.0',lastContext:null,lastProvider:null,clear(){localStorage.removeItem(SYNC_KEY)}};
+window.PythonAIBackendSync={version:'1.2.0',lastContext:null,lastProvider:null,clear(){localStorage.removeItem(SYNC_KEY)}};
 window.fetch=async function(input,options={}){
   const url=typeof input==='string'?input:input?.url||'';
   let next=options;
