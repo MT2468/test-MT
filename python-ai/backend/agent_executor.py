@@ -3,7 +3,7 @@ from __future__ import annotations
 import time
 from typing import Any
 
-from tool_grants import resolve_grant
+from tool_grants import resolve_grant_plan
 from tool_registry import TOOLS, execute_tool
 
 
@@ -81,12 +81,15 @@ def run_agent_plan(
         raise AgentValidationError('grant_token inválido')
 
     prepared_steps = _preflight_plan(steps, max_steps)
+    # Reserva o escopo e todos os usos do plano em uma única seção crítica.
+    # Assim um passo não executa antes de descobrirmos que outro passo não cabe no grant.
+    granted = resolve_grant_plan(grant_token, [name for name, _ in prepared_steps])
+
     started = time.monotonic()
     results: list[dict[str, Any]] = []
     for index, (name, arguments) in enumerate(prepared_steps):
         if time.monotonic() - started > max_runtime_seconds:
             raise AgentTimeoutError('Tempo máximo do agente excedido')
-        granted = resolve_grant(grant_token, name)
         output = execute_tool(name, arguments, granted)
         results.append({'step': index + 1, **output})
 
