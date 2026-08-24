@@ -1,6 +1,10 @@
+import asyncio
+import io
 import tempfile
 import unittest
 from pathlib import Path
+
+from starlette.datastructures import UploadFile
 
 import server
 
@@ -46,6 +50,29 @@ class ServerUpdateTests(unittest.TestCase):
         self.assertEqual(row['title'], 'Depois')
         self.assertEqual(row['content'], 'conteudo 2')
         self.assertIsNotNone(row['updated_at'])
+
+    def test_file_put_preserves_id_and_created_at(self):
+        original = UploadFile(filename='nota.txt', file=io.BytesIO(b'primeira versao'))
+        created = asyncio.run(server.upload(original))
+        changed = UploadFile(filename='nota-renomeada.txt', file=io.BytesIO(b'segunda versao'))
+        updated = asyncio.run(server.update_file(created['id'], changed))
+
+        self.assertEqual(updated['id'], created['id'])
+        self.assertEqual(updated['created_at'], created['created_at'])
+        self.assertEqual(updated['name'], 'nota-renomeada.txt')
+        self.assertGreaterEqual(updated['updated_at'], created['updated_at'])
+        self.assertEqual(server.file_text(created['id']), 'segunda versao')
+        with server.connect() as c:
+            row = c.execute('select * from files where id=?', (created['id'],)).fetchone()
+        self.assertEqual(row['id'], created['id'])
+        self.assertEqual(row['name'], 'nota-renomeada.txt')
+        self.assertIsNotNone(row['updated_at'])
+
+    def test_file_put_rejects_missing_id(self):
+        changed = UploadFile(filename='x.txt', file=io.BytesIO(b'x'))
+        with self.assertRaises(server.HTTPException) as file_error:
+            asyncio.run(server.update_file('missing', changed))
+        self.assertEqual(file_error.exception.status_code, 404)
 
     def test_missing_records_return_404(self):
         with self.assertRaises(server.HTTPException) as conv_error:
