@@ -55,7 +55,8 @@ create table if not exists memories(
   id text primary key,
   title text not null,
   content text not null,
-  created_at text not null
+  created_at text not null,
+  updated_at text
 );
 create table if not exists files(
   id text primary key,
@@ -69,6 +70,11 @@ create table if not exists files(
 '''
 with connect() as c:
     c.executescript(SCHEMA)
+    memory_columns = {row['name'] for row in c.execute('pragma table_info(memories)').fetchall()}
+    if 'updated_at' not in memory_columns:
+        c.execute('alter table memories add column updated_at text')
+    c.execute('update memories set updated_at=created_at where updated_at is null')
+    c.commit()
 
 OPS = {
     ast.Add: operator.add,
@@ -115,7 +121,7 @@ def maybe_text(raw: bytes, name: str, mime: str | None):
         return raw.decode('utf-8', errors='replace')[:200_000]
 
 
-app = FastAPI(title='Python AI API', version='3.2.0')
+app = FastAPI(title='Python AI API', version='3.3.0')
 app.add_middleware(CORSMiddleware, allow_origins=CORS, allow_credentials=False, allow_methods=['*'], allow_headers=['*'])
 
 
@@ -135,7 +141,12 @@ class MemoryRequest(BaseModel):
 
 class ConversationRequest(BaseModel):
     title: str = Field(default='Novo chat', min_length=1, max_length=120)
-    project_id: str | None = None
+    project_id: str | None = Field(default=None, max_length=120)
+
+
+class ConversationUpdate(BaseModel):
+    title: str = Field(min_length=1, max_length=120)
+    project_id: str | None = Field(default=None, max_length=120)
 
 
 class MessageRequest(BaseModel):
@@ -150,7 +161,7 @@ def load_chat_context(req: ChatRequest) -> tuple[list[dict], dict]:
 
     with connect() as c:
         if req.use_memory:
-            memories = [dict(r) for r in c.execute('select * from memories order by created_at desc').fetchall()]
+            memories = [dict(r) for r in c.execute('select * from memories order by updated_at desc, created_at desc').fetchall()]
 
         if req.conversation_id:
             if not c.execute('select 1 from conversations where id=?', (req.conversation_id,)).fetchone():
@@ -188,7 +199,7 @@ def health():
     routes = public_routes()
     return {
         'ok': True,
-        'version': '3.2.0',
+        'version': '3.3.0',
         'routes': routes,
         'primary_provider': routes[0]['name'] if routes else None,
         'primary_model': routes[0]['model'] if routes else None,
@@ -259,6 +270,18 @@ def create_conversation(body: ConversationRequest):
     return {'id': cid, 'title': body.title, 'project_id': body.project_id, 'created_at': stamp, 'updated_at': stamp}
 
 
+@app.patch('/api/conversations/{cid}')
+def update_conversation(cid: str, body: ConversationUpdate):
+    stamp = now()
+    with connect() as c:
+        row = c.execute('select created_at from conversations where id=?', (cid,)).fetchone()
+        if not row:
+            raise HTTPException(404, 'Conversa não encontrada')
+        c.execute('update conversations set title=?, project_id=?, updated_at=? where id=?', (body.title, body.project_id, stamp, cid))
+        c.commit()
+    return {'id': cid, 'title': body.title, 'project_id': body.project_id, 'created_at': row['created_at'], 'updated_at': stamp}
+
+
 @app.get('/api/conversations/{cid}/messages')
 def list_messages(cid: str):
     with connect() as c:
@@ -295,9 +318,9 @@ def list_memories(q: str | None = None):
     with connect() as c:
         if q:
             pattern = '%' + q + '%'
-            rows = c.execute('select * from memories where title like ? or content like ? order by created_at desc', (pattern, pattern)).fetchall()
+            rows = c.execute('select * from memories where title like ? or content like ? order by updated_at desc, created_at desc', (pattern, pattern)).fetchall()
         else:
-            rows = c.execute('select * from memories order by created_at desc').fetchall()
+            rows = c.execute('select * from memories order by updated_at desc, created_at desc').fetchall()
         return [dict(r) for r in rows]
 
 
@@ -306,9 +329,21 @@ def create_memory(body: MemoryRequest):
     mid = str(uuid.uuid4())
     stamp = now()
     with connect() as c:
-        c.execute('insert into memories values(?,?,?,?)', (mid, body.title, body.content, stamp))
+        c.execute('insert into memories(id,title,content,created_at,updated_at) values(?,?,?,?,?)', (mid, body.title, body.content, stamp, stamp))
         c.commit()
-    return {'id': mid, 'title': body.title, 'content': body.content, 'created_at': stamp}
+    return {'id': mid, 'title': body.title, 'content': body.content, 'created_at': stamp, 'updated_at': stamp}
+
+
+@app.patch('/api/memories/{mid}')
+def update_memory(mid: str, body: MemoryRequest):
+    stamp = now()
+    with connect() as c:
+        row = c.execute('select created_at from memories where id=?', (mid,)).fetchone()
+        if not row:
+            raise HTTPException(404, 'Memória não encontrada')
+        c.execute('update memories set title=?, content=?, updated_at=? where id=?', (body.title, body.content, stamp, mid))
+        c.commit()
+    return {'id': mid, 'title': body.title, 'content': body.content, 'created_at': row['created_at'], 'updated_at': stamp}
 
 
 @app.delete('/api/memories/{mid}')
