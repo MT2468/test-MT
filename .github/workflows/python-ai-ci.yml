@@ -47,13 +47,17 @@ jobs:
           grep -q './context-controls.js' python-ai/web/index.html
           grep -q 'PythonAIContextSelection' python-ai/web/context-controls.js
           grep -q 'getForConversation' python-ai/web/context-controls.js
+          grep -q 'consumeForConversation' python-ai/web/context-controls.js
+          grep -q 'nextFileIds' python-ai/web/context-controls.js
+          grep -q 'Contexto da próxima mensagem' python-ai/web/context-controls.js
           grep -q 'useMemory' python-ai/web/context-controls.js
           grep -q 'data-py-file' python-ai/web/context-controls.js
           grep -q 'python-ai-backend-context' python-ai/web/context-controls.js
           grep -q 'Contexto usado:' python-ai/web/context-controls.js
           grep -q 'requestSelection' python-ai/web/backend-sync.js
+          grep -q 'consumeSelection' python-ai/web/backend-sync.js
           grep -q 'syncSelectedFiles' python-ai/web/backend-sync.js
-          grep -q "version:'1.5.0'" python-ai/web/backend-sync.js
+          grep -q "version:'1.6.0'" python-ai/web/backend-sync.js
       - name: Check backend context sync contract
         run: |
           grep -q './backend-sync.js' python-ai/web/index.html
@@ -120,7 +124,7 @@ jobs:
           grep -q "'./secure-storage.js'" python-ai/web/sw.js
           grep -q "'./backend-sync.js'" python-ai/web/sw.js
           grep -q "'./context-controls.js'" python-ai/web/sw.js
-          grep -q "python-ai-definitive-v7" python-ai/web/sw.js
+          grep -q "python-ai-definitive-v8" python-ai/web/sw.js
       - name: Smoke-test static serving
         run: |
           python -m http.server 4173 -d python-ai/web >/tmp/python-ai-http.log 2>&1 &
