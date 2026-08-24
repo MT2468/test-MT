@@ -100,6 +100,14 @@ jobs:
           ! grep -q 'set(body.permissions)' python-ai/backend/server.py
           ! grep -q "/api/tools/calculator" python-ai/backend/server.py
           ! grep -q "/api/tools/time" python-ai/backend/server.py
+      - name: Check bounded agent executor
+        run: |
+          grep -q 'MAX_AGENT_STEPS = 6' python-ai/backend/agent_executor.py
+          grep -q 'MAX_AGENT_RUNTIME_SECONDS = 5.0' python-ai/backend/agent_executor.py
+          grep -q "spec.risk != 'low'" python-ai/backend/agent_executor.py
+          grep -q 'spec.mutates_state' python-ai/backend/agent_executor.py
+          grep -q 'resolve_grant(grant_token, name)' python-ai/backend/agent_executor.py
+          grep -q 'execute_tool(name, arguments, granted)' python-ai/backend/agent_executor.py
       - name: Check Browser Bridge extension
         run: |
           node --check python-ai/browser-extension/bridge.js
@@ -120,11 +128,11 @@ jobs:
           PY
       - name: Check backend Python
         run: |
-          python -m py_compile python-ai/backend/server.py python-ai/backend/model_router.py python-ai/backend/context_builder.py python-ai/backend/tool_registry.py python-ai/backend/tool_grants.py python-ai/backend/test_model_router.py python-ai/backend/test_context_builder.py python-ai/backend/test_server_updates.py python-ai/backend/test_tool_registry.py python-ai/backend/test_tool_grants.py python-ai/backend/test_tool_api.py
+          python -m py_compile python-ai/backend/server.py python-ai/backend/model_router.py python-ai/backend/context_builder.py python-ai/backend/tool_registry.py python-ai/backend/tool_grants.py python-ai/backend/agent_executor.py python-ai/backend/test_model_router.py python-ai/backend/test_context_builder.py python-ai/backend/test_server_updates.py python-ai/backend/test_tool_registry.py python-ai/backend/test_tool_grants.py python-ai/backend/test_tool_api.py python-ai/backend/test_agent_executor.py
       - name: Run backend unit tests
         run: |
           cd python-ai/backend
-          python -m unittest -v test_model_router.py test_context_builder.py test_server_updates.py test_tool_registry.py test_tool_grants.py test_tool_api.py
+          python -m unittest -v test_model_router.py test_context_builder.py test_server_updates.py test_tool_registry.py test_tool_grants.py test_tool_api.py test_agent_executor.py
       - name: Check required web assets
         run: |
           test -f python-ai/web/index.html
