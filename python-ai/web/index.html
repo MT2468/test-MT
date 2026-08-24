@@ -14,6 +14,62 @@
   <div id="app" aria-live="polite"></div>
   <input id="filePicker" type="file" multiple hidden />
   <input id="backupPicker" type="file" accept="application/json" hidden />
+
+  <script src="https://js.puter.com/v2/"></script>
+  <script>
+    (() => {
+      const DEFAULT_MODEL = 'gpt-5-nano';
+      const makeMessages = (systemPrompt, prompt) => {
+        const messages = [];
+        if (systemPrompt) messages.push({ role: 'system', content: systemPrompt });
+        messages.push({ role: 'user', content: prompt });
+        return messages;
+      };
+
+      window.LanguageModel = {
+        async create({ systemPrompt = '' } = {}) {
+          return {
+            async *promptStreaming(prompt) {
+              if (!window.puter?.ai?.chat) throw new Error('Puter AI indisponível');
+              const stream = await puter.ai.chat(makeMessages(systemPrompt, prompt), {
+                model: DEFAULT_MODEL,
+                stream: true
+              });
+              let full = '';
+              for await (const part of stream) {
+                const delta = part?.text || (part?.type === 'text' ? part.text : '') || '';
+                if (!delta) continue;
+                full += delta;
+                yield full;
+              }
+            },
+            async prompt(prompt) {
+              if (!window.puter?.ai?.chat) throw new Error('Puter AI indisponível');
+              const result = await puter.ai.chat(makeMessages(systemPrompt, prompt), {
+                model: DEFAULT_MODEL
+              });
+              return result?.message?.content || result?.text || String(result || '');
+            },
+            destroy() {}
+          };
+        }
+      };
+
+      const renameChromeAI = root => {
+        const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+        const nodes = [];
+        while (walker.nextNode()) nodes.push(walker.currentNode);
+        for (const node of nodes) {
+          if (node.nodeValue?.includes('Chrome AI')) node.nodeValue = node.nodeValue.replaceAll('Chrome AI', 'Puter AI');
+        }
+      };
+      new MutationObserver(mutations => {
+        for (const m of mutations) for (const n of m.addedNodes) if (n.nodeType === 1) renameChromeAI(n);
+      }).observe(document.documentElement, { childList: true, subtree: true });
+      document.addEventListener('DOMContentLoaded', () => renameChromeAI(document.body));
+    })();
+  </script>
+
   <script src="./app.js" defer></script>
   <script src="./enhancements.js" defer></script>
 </body>
