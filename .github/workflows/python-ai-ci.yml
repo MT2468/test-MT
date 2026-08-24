@@ -53,6 +53,7 @@ jobs:
           grep -q 'reconcileDeleted' python-ai/web/backend-sync.js
           grep -q "method:'DELETE'" python-ai/web/backend-sync.js
           grep -q "method:'PATCH'" python-ai/web/backend-sync.js
+          grep -q "method:'PUT'" python-ai/web/backend-sync.js
           grep -q 'patchRemote' python-ai/web/backend-sync.js
           grep -q 'fingerprints.conversations' python-ai/web/backend-sync.js
           grep -q 'exclusão remota pendente' python-ai/web/backend-sync.js
@@ -60,11 +61,13 @@ jobs:
           grep -q 'edição de conversa pendente' python-ai/web/backend-sync.js
           grep -q 'edição de memória pendente' python-ai/web/backend-sync.js
           grep -q 'edição de arquivo pendente' python-ai/web/backend-sync.js
-          grep -q "version:'1.3.0'" python-ai/web/backend-sync.js
+          grep -q "version:'1.4.0'" python-ai/web/backend-sync.js
           grep -q 'sincronização de contexto indisponível; usando requisição original' python-ai/web/backend-sync.js
           grep -q "@app.patch('/api/conversations/{cid}')" python-ai/backend/server.py
           grep -q "@app.patch('/api/memories/{mid}')" python-ai/backend/server.py
-          grep -q "version='3.3.0'" python-ai/backend/server.py
+          grep -q "@app.put('/api/files/{fid}')" python-ai/backend/server.py
+          grep -q "version='3.4.0'" python-ai/backend/server.py
+          grep -q 'updated_at text' python-ai/backend/server.py
       - name: Check Browser Bridge extension
         run: |
           node --check python-ai/browser-extension/bridge.js
