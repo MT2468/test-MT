@@ -81,6 +81,12 @@ jobs:
           grep -q 'secrets.token_urlsafe' python-ai/backend/tool_grants.py
           grep -q 'hashlib.sha256' python-ai/backend/tool_grants.py
           grep -q 'hmac.compare_digest' python-ai/backend/tool_grants.py
+          grep -q 'list_grant_audit' python-ai/backend/tool_grants.py
+          grep -q "_audit_locked('issue', 'success'" python-ai/backend/tool_grants.py
+          grep -q "_audit_locked('consume', 'success'" python-ai/backend/tool_grants.py
+          grep -q "_audit_locked('revoke'" python-ai/backend/tool_grants.py
+          grep -q "_audit_locked('expire', 'success'" python-ai/backend/tool_grants.py
+          grep -q 'Nunca registrar token' python-ai/backend/tool_grants.py
           grep -q "@app.post('/api/tool-grants')" python-ai/backend/server.py
           grep -q "@app.post('/api/tool-grants/revoke')" python-ai/backend/server.py
           grep -q "@app.post('/api/tools/execute')" python-ai/backend/server.py
