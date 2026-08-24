@@ -6,13 +6,21 @@ import sqlite3
 import uuid
 from pathlib import Path
 
-from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi import FastAPI, File, Header, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import PlainTextResponse, StreamingResponse
 from pydantic import BaseModel, Field
 
 from context_builder import build_context_messages
 from model_router import configured_targets, discover_models, public_routes, stream_with_fallback
+from tool_grants import (
+    GrantDenied,
+    GrantUnavailable,
+    GrantValidationError,
+    issue_grant,
+    resolve_grant,
+    revoke_grant,
+)
 from tool_registry import (
     ToolError,
     ToolNotFound,
@@ -115,7 +123,7 @@ def stored_path(fid: str, original: str):
     return FILES / f'{fid}_{clean_name(original)}'
 
 
-app = FastAPI(title='Python AI API', version='3.5.0')
+app = FastAPI(title='Python AI API', version='3.6.0')
 app.add_middleware(CORSMiddleware, allow_origins=CORS, allow_credentials=False, allow_methods=['*'], allow_headers=['*'])
 
 
@@ -148,10 +156,19 @@ class MessageRequest(BaseModel):
     content: str = Field(min_length=1, max_length=200_000)
 
 
+class ToolGrantRequest(BaseModel):
+    permissions: list[str] = Field(min_length=1, max_length=10)
+    ttl_seconds: int = Field(default=300, ge=30, le=900)
+
+
+class ToolGrantRevokeRequest(BaseModel):
+    grant_token: str = Field(min_length=20, max_length=200)
+
+
 class ToolExecuteRequest(BaseModel):
     name: str = Field(min_length=1, max_length=120)
     arguments: dict = Field(default_factory=dict)
-    permissions: list[str] = Field(default_factory=list, max_length=20)
+    grant_token: str = Field(min_length=20, max_length=200)
 
 
 def load_chat_context(req: ChatRequest) -> tuple[list[dict], dict]:
@@ -182,7 +199,7 @@ async def stream_model(messages: list[dict], req: ChatRequest):
 @app.get('/api/health')
 def health():
     routes = public_routes()
-    return {'ok': True, 'version': '3.5.0', 'routes': routes, 'primary_provider': routes[0]['name'] if routes else None, 'primary_model': routes[0]['model'] if routes else None}
+    return {'ok': True, 'version': '3.6.0', 'routes': routes, 'primary_provider': routes[0]['name'] if routes else None, 'primary_model': routes[0]['model'] if routes else None}
 
 
 @app.get('/api/models')
@@ -229,11 +246,33 @@ def tools():
     return {'tools': list_tools()}
 
 
+@app.post('/api/tool-grants')
+def tool_grant_issue(body: ToolGrantRequest, x_tool_grant_secret: str | None = Header(default=None)):
+    try:
+        return issue_grant(body.permissions, body.ttl_seconds, x_tool_grant_secret)
+    except GrantUnavailable as exc:
+        raise HTTPException(503, str(exc)) from exc
+    except GrantDenied as exc:
+        raise HTTPException(403, str(exc)) from exc
+    except GrantValidationError as exc:
+        raise HTTPException(400, str(exc)) from exc
+
+
+@app.post('/api/tool-grants/revoke')
+def tool_grant_revoke(body: ToolGrantRevokeRequest):
+    try:
+        return {'revoked': revoke_grant(body.grant_token)}
+    except GrantValidationError as exc:
+        raise HTTPException(400, str(exc)) from exc
+
+
 @app.post('/api/tools/execute')
 def tool_execute(body: ToolExecuteRequest):
-    granted = set(body.permissions)
     try:
+        granted = resolve_grant(body.grant_token)
         return execute_tool(body.name, body.arguments, granted)
+    except GrantDenied as exc:
+        raise HTTPException(403, str(exc)) from exc
     except ToolPermissionDenied as exc:
         raise HTTPException(403, str(exc)) from exc
     except ToolNotFound as exc:
