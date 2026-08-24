@@ -18,7 +18,11 @@
   <script src="https://js.puter.com/v2/"></script>
   <script>
     (() => {
-      const DEFAULT_MODEL = 'gpt-5-nano';
+      const GENERAL_MODEL = 'dots-studio/dots-3-note-preview:free';
+      const CODE_MODEL = 'cohere/north-mini-code:free';
+      const CODE_HINTS = /\b(c[oó]digo|programa(?:ção|cao)?|python|javascript|typescript|react|html|css|sql|api|bug|erro|debug|refator|função|funcao|classe|git|github|backend|frontend|algoritmo|script)\b/i;
+      const chooseModel = prompt => CODE_HINTS.test(String(prompt || '')) ? CODE_MODEL : GENERAL_MODEL;
+
       const makeMessages = (systemPrompt, prompt) => {
         const messages = [];
         if (systemPrompt) messages.push({ role: 'system', content: systemPrompt });
@@ -26,13 +30,15 @@
         return messages;
       };
 
+      window.PythonAIModels = { GENERAL_MODEL, CODE_MODEL, chooseModel };
       window.LanguageModel = {
         async create({ systemPrompt = '' } = {}) {
           return {
             async *promptStreaming(prompt) {
               if (!window.puter?.ai?.chat) throw new Error('Puter AI indisponível');
+              const model = chooseModel(prompt);
               const stream = await puter.ai.chat(makeMessages(systemPrompt, prompt), {
-                model: DEFAULT_MODEL,
+                model,
                 stream: true
               });
               let full = '';
@@ -45,9 +51,8 @@
             },
             async prompt(prompt) {
               if (!window.puter?.ai?.chat) throw new Error('Puter AI indisponível');
-              const result = await puter.ai.chat(makeMessages(systemPrompt, prompt), {
-                model: DEFAULT_MODEL
-              });
+              const model = chooseModel(prompt);
+              const result = await puter.ai.chat(makeMessages(systemPrompt, prompt), { model });
               return result?.message?.content || result?.text || String(result || '');
             },
             destroy() {}
