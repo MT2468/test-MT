@@ -87,6 +87,8 @@ jobs:
           grep -q './styles.css' python-ai/web/index.html
           grep -q './app.js' python-ai/web/index.html
           grep -q './enhancements.js' python-ai/web/index.html
+          grep -q "'./secure-storage.js'" python-ai/web/sw.js
+          grep -q "'./backend-sync.js'" python-ai/web/sw.js
       - name: Smoke-test static serving
         run: |
           python -m http.server 4173 -d python-ai/web >/tmp/python-ai-http.log 2>&1 &
