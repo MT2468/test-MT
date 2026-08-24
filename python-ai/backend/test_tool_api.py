@@ -51,6 +51,18 @@ class ToolApiTests(unittest.TestCase):
         self.assertEqual(result['permission'], 'tools.read.basic')
         self.assertFalse(result['mutates_state'])
 
+    def test_grant_cannot_be_replayed_through_api(self):
+        token = self.grant()
+        request = server.ToolExecuteRequest(
+            name='time.now',
+            arguments={},
+            grant_token=token,
+        )
+        server.tool_execute(request)
+        with self.assertRaises(server.HTTPException) as replayed:
+            server.tool_execute(request)
+        self.assertEqual(replayed.exception.status_code, 403)
+
     def test_execute_rejects_invalid_grant(self):
         request = server.ToolExecuteRequest(
             name='calculator.evaluate',
