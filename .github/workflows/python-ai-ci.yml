@@ -49,7 +49,12 @@ jobs:
           assert 'page.read' in bridge and 'window.confirm' in bridge
           PY
       - name: Check backend Python
-        run: python -m py_compile python-ai/backend/server.py
+        run: |
+          python -m py_compile python-ai/backend/server.py python-ai/backend/model_router.py python-ai/backend/test_model_router.py
+      - name: Run backend unit tests
+        run: |
+          cd python-ai/backend
+          python -m unittest -v test_model_router.py
       - name: Check required web assets
         run: |
           test -f python-ai/web/index.html
