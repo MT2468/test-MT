@@ -74,6 +74,10 @@ jobs:
           grep -q 'mutates_state=False' python-ai/backend/tool_registry.py
           grep -q 'PYTHON_AI_TOOL_GRANT_SECRET' python-ai/backend/tool_grants.py
           grep -q '_MAX_TTL_SECONDS = 900' python-ai/backend/tool_grants.py
+          grep -q '_MAX_USES = 100' python-ai/backend/tool_grants.py
+          grep -q 'max_uses: int = 1' python-ai/backend/tool_grants.py
+          grep -q '_ALLOWED_TOOL_NAMES' python-ai/backend/tool_grants.py
+          grep -q 'uses_consumed' python-ai/backend/tool_grants.py
           grep -q 'secrets.token_urlsafe' python-ai/backend/tool_grants.py
           grep -q 'hashlib.sha256' python-ai/backend/tool_grants.py
           grep -q 'hmac.compare_digest' python-ai/backend/tool_grants.py
