@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Python AI Browser Bridge",
-  "version": "0.1.0",
-  "description": "Ponte segura entre a Python AI e o Chrome, inspirada no Browser Bridge 1.7.1.",
+  "version": "0.2.0",
+  "description": "Ponte segura entre a Python AI e o Chrome, com consentimento granular e auditoria local.",
   "permissions": ["tabs", "activeTab", "scripting", "storage"],
   "host_permissions": ["<all_urls>"],
   "background": {
