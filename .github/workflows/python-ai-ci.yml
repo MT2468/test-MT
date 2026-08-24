@@ -52,13 +52,19 @@ jobs:
           grep -q '/api/files' python-ai/web/backend-sync.js
           grep -q 'reconcileDeleted' python-ai/web/backend-sync.js
           grep -q "method:'DELETE'" python-ai/web/backend-sync.js
+          grep -q "method:'PATCH'" python-ai/web/backend-sync.js
+          grep -q 'patchRemote' python-ai/web/backend-sync.js
+          grep -q 'fingerprints.conversations' python-ai/web/backend-sync.js
           grep -q 'exclusão remota pendente' python-ai/web/backend-sync.js
-          grep -q 'fingerprints' python-ai/web/backend-sync.js
           grep -q 'previousFingerprint!==nextFingerprint' python-ai/web/backend-sync.js
+          grep -q 'edição de conversa pendente' python-ai/web/backend-sync.js
           grep -q 'edição de memória pendente' python-ai/web/backend-sync.js
           grep -q 'edição de arquivo pendente' python-ai/web/backend-sync.js
-          grep -q "version:'1.2.0'" python-ai/web/backend-sync.js
+          grep -q "version:'1.3.0'" python-ai/web/backend-sync.js
           grep -q 'sincronização de contexto indisponível; usando requisição original' python-ai/web/backend-sync.js
+          grep -q "@app.patch('/api/conversations/{cid}')" python-ai/backend/server.py
+          grep -q "@app.patch('/api/memories/{mid}')" python-ai/backend/server.py
+          grep -q "version='3.3.0'" python-ai/backend/server.py
       - name: Check Browser Bridge extension
         run: |
           node --check python-ai/browser-extension/bridge.js
@@ -79,11 +85,11 @@ jobs:
           PY
       - name: Check backend Python
         run: |
-          python -m py_compile python-ai/backend/server.py python-ai/backend/model_router.py python-ai/backend/context_builder.py python-ai/backend/test_model_router.py python-ai/backend/test_context_builder.py
+          python -m py_compile python-ai/backend/server.py python-ai/backend/model_router.py python-ai/backend/context_builder.py python-ai/backend/test_model_router.py python-ai/backend/test_context_builder.py python-ai/backend/test_server_updates.py
       - name: Run backend unit tests
         run: |
           cd python-ai/backend
-          python -m unittest -v test_model_router.py test_context_builder.py
+          python -m unittest -v test_model_router.py test_context_builder.py test_server_updates.py
       - name: Check required web assets
         run: |
           test -f python-ai/web/index.html
