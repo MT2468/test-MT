@@ -65,6 +65,32 @@ class AgentExecutorTests(unittest.TestCase):
         ], token)
         self.assertEqual(result['results'][0]['result'], 42)
 
+    def test_registered_tool_scope_failure_is_preflighted_before_any_step(self):
+        token = self.grant(['calculator.evaluate'], 1)
+        with self.assertRaises(GrantDenied):
+            run_agent_plan([
+                {'name': 'calculator.evaluate', 'arguments': {'expression': '20+22'}},
+                {'name': 'time.now', 'arguments': {}},
+            ], token)
+        # O plano inteiro deve falhar antes de consumir o uso válido da calculadora.
+        result = run_agent_plan([
+            {'name': 'calculator.evaluate', 'arguments': {'expression': '20+22'}},
+        ], token)
+        self.assertEqual(result['results'][0]['result'], 42)
+
+    def test_insufficient_grant_uses_are_preflighted_before_any_step(self):
+        token = self.grant(['calculator.evaluate', 'time.now'], 1)
+        with self.assertRaises(GrantDenied):
+            run_agent_plan([
+                {'name': 'calculator.evaluate', 'arguments': {'expression': '7*6'}},
+                {'name': 'time.now', 'arguments': {}},
+            ], token)
+        # Capacidade insuficiente não pode consumir parcialmente o grant.
+        result = run_agent_plan([
+            {'name': 'calculator.evaluate', 'arguments': {'expression': '7*6'}},
+        ], token)
+        self.assertEqual(result['results'][0]['result'], 42)
+
     def test_registered_tool_still_needs_grant_scope(self):
         token = self.grant(['calculator.evaluate'], 1)
         with self.assertRaises(GrantDenied):
