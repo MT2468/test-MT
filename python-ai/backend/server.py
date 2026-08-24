@@ -8,11 +8,12 @@ import sqlite3
 import uuid
 from pathlib import Path
 
-import httpx
 from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import PlainTextResponse, StreamingResponse
 from pydantic import BaseModel, Field
+
+from model_router import configured_targets, discover_models, public_routes, stream_with_fallback
 
 DATA = Path(os.getenv('PYTHON_AI_DATA', './data')).resolve()
 FILES = DATA / 'files'
@@ -20,11 +21,6 @@ DB = DATA / 'python_ai.db'
 DATA.mkdir(parents=True, exist_ok=True)
 FILES.mkdir(parents=True, exist_ok=True)
 
-PROVIDER = os.getenv('PYTHON_AI_PROVIDER', 'ollama').lower()
-MODEL = os.getenv('PYTHON_AI_MODEL', 'llama3.2:3b')
-OLLAMA = os.getenv('PYTHON_AI_OLLAMA_URL', 'http://localhost:11434').rstrip('/')
-OPENAI = os.getenv('PYTHON_AI_OPENAI_BASE', '').rstrip('/')
-OPENAI_KEY = os.getenv('PYTHON_AI_OPENAI_KEY', '')
 CORS = [x.strip() for x in os.getenv('PYTHON_AI_CORS_ORIGINS', 'https://mt2468.github.io,http://localhost:8000,http://localhost:5173').split(',') if x.strip()]
 MAX_UPLOAD = int(os.getenv('PYTHON_AI_MAX_UPLOAD', '10000000'))
 
@@ -118,13 +114,13 @@ def maybe_text(raw: bytes, name: str, mime: str | None):
         return raw.decode('utf-8', errors='replace')[:200_000]
 
 
-app = FastAPI(title='Python AI API', version='3.0.0')
+app = FastAPI(title='Python AI API', version='3.1.0')
 app.add_middleware(CORSMiddleware, allow_origins=CORS, allow_credentials=False, allow_methods=['*'], allow_headers=['*'])
 
 
 class ChatRequest(BaseModel):
     messages: list[dict]
-    model: str | None = None
+    model: str | None = Field(default=None, max_length=200)
     temperature: float = Field(default=.7, ge=0, le=2)
 
 
@@ -144,68 +140,67 @@ class MessageRequest(BaseModel):
 
 
 async def stream_model(req: ChatRequest):
-    if PROVIDER == 'openai':
-        if not OPENAI:
-            raise RuntimeError('PYTHON_AI_OPENAI_BASE não configurado')
-        base = OPENAI if OPENAI.endswith('/v1') else OPENAI + '/v1'
-        headers = {'Content-Type': 'application/json'}
-        if OPENAI_KEY:
-            headers['Authorization'] = f'Bearer {OPENAI_KEY}'
-        payload = {'model': req.model or MODEL, 'messages': req.messages, 'temperature': req.temperature, 'stream': True}
-        async with httpx.AsyncClient(timeout=180) as client:
-            async with client.stream('POST', base + '/chat/completions', headers=headers, json=payload) as response:
-                response.raise_for_status()
-                async for line in response.aiter_lines():
-                    if not line.startswith('data:'):
-                        continue
-                    raw = line[5:].strip()
-                    if not raw or raw == '[DONE]':
-                        continue
-                    data = json.loads(raw)
-                    delta = data.get('choices', [{}])[0].get('delta', {}).get('content', '')
-                    if delta:
-                        yield delta
-    else:
-        payload = {'model': req.model or MODEL, 'messages': req.messages, 'stream': True, 'options': {'temperature': req.temperature}}
-        async with httpx.AsyncClient(timeout=180) as client:
-            async with client.stream('POST', OLLAMA + '/api/chat', json=payload) as response:
-                response.raise_for_status()
-                async for line in response.aiter_lines():
-                    if not line:
-                        continue
-                    data = json.loads(line)
-                    delta = data.get('message', {}).get('content', '')
-                    if delta:
-                        yield delta
+    async for provider, piece in stream_with_fallback(
+        req.messages,
+        temperature=req.temperature,
+        model_override=req.model,
+    ):
+        yield provider, piece
 
 
 @app.get('/api/health')
 def health():
-    return {'ok': True, 'version': '3.0.0', 'provider': PROVIDER, 'model': MODEL, 'database': str(DB)}
+    routes = public_routes()
+    return {
+        'ok': True,
+        'version': '3.1.0',
+        'routes': routes,
+        'primary_provider': routes[0]['name'] if routes else None,
+        'primary_model': routes[0]['model'] if routes else None,
+    }
 
 
 @app.get('/api/models')
 async def models():
-    if PROVIDER == 'ollama':
+    routes = configured_targets()
+    if not routes:
+        raise HTTPException(503, 'Nenhum provedor de IA configurado')
+
+    result = []
+    any_available = False
+    for target in routes:
+        public = target.public_dict()
         try:
-            async with httpx.AsyncClient(timeout=10) as client:
-                r = await client.get(OLLAMA + '/api/tags')
-                r.raise_for_status()
-                return {'provider': 'ollama', 'models': [m.get('name') for m in r.json().get('models', [])]}
+            discovered = await discover_models(target)
+            public['models'] = discovered
+            public['available'] = True
+            any_available = True
         except Exception as exc:
-            raise HTTPException(503, f'Ollama indisponível: {exc}')
-    return {'provider': PROVIDER, 'models': [MODEL]}
+            public['models'] = []
+            public['available'] = False
+            public['error_type'] = type(exc).__name__
+        result.append(public)
+
+    return {'routes': result, 'any_available': any_available}
 
 
 @app.post('/api/chat/stream')
 async def chat(req: ChatRequest):
     async def event_stream():
+        active_provider = None
         try:
-            async for piece in stream_model(req):
+            async for provider, piece in stream_model(req):
+                if provider != active_provider:
+                    active_provider = provider
+                    yield 'data: ' + json.dumps({'provider': provider}, ensure_ascii=False) + '\n\n'
                 yield 'data: ' + json.dumps({'delta': piece}, ensure_ascii=False) + '\n\n'
             yield 'data: {"done":true}\n\n'
         except Exception as exc:
-            yield 'data: ' + json.dumps({'error': str(exc)}, ensure_ascii=False) + '\n\n'
+            yield 'data: ' + json.dumps({
+                'error': 'Falha ao gerar resposta',
+                'error_type': type(exc).__name__,
+                'provider': active_provider,
+            }, ensure_ascii=False) + '\n\n'
     return StreamingResponse(event_stream(), media_type='text/event-stream', headers={'Cache-Control': 'no-cache'})
 
 
