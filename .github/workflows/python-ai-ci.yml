@@ -65,7 +65,7 @@ jobs:
           grep -q "@app.patch('/api/conversations/{cid}')" python-ai/backend/server.py
           grep -q "@app.patch('/api/memories/{mid}')" python-ai/backend/server.py
           grep -q "@app.put('/api/files/{fid}')" python-ai/backend/server.py
-          grep -q "version='3.6.0'" python-ai/backend/server.py
+          grep -q "version='3.7.0'" python-ai/backend/server.py
           grep -q 'updated_at text' python-ai/backend/server.py
       - name: Check server-issued tool grants
         run: |
@@ -84,6 +84,11 @@ jobs:
           grep -q "@app.post('/api/tool-grants')" python-ai/backend/server.py
           grep -q "@app.post('/api/tool-grants/revoke')" python-ai/backend/server.py
           grep -q "@app.post('/api/tools/execute')" python-ai/backend/server.py
+          grep -q 'tool_names: list\[str\]' python-ai/backend/server.py
+          grep -q 'max_uses: int = Field(default=1, ge=1, le=100)' python-ai/backend/server.py
+          grep -q 'tool_names=body.tool_names' python-ai/backend/server.py
+          grep -q 'max_uses=body.max_uses' python-ai/backend/server.py
+          grep -q 'resolve_grant(body.grant_token, body.name)' python-ai/backend/server.py
           grep -q 'grant_token' python-ai/backend/server.py
           ! grep -q 'permissions: list\[str\].*ToolExecuteRequest' python-ai/backend/server.py
           ! grep -q 'set(body.permissions)' python-ai/backend/server.py
