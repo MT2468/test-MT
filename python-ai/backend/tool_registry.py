@@ -3,6 +3,9 @@ from __future__ import annotations
 import ast
 import datetime as dt
 import operator
+import threading
+import uuid
+from collections import deque
 from dataclasses import dataclass
 from typing import Any, Callable
 
@@ -47,6 +50,36 @@ class ToolSpec:
 class RegisteredTool:
     spec: ToolSpec
     handler: Callable[[dict[str, Any]], Any]
+
+
+_AUDIT_LIMIT = 200
+_AUDIT: deque[dict[str, Any]] = deque(maxlen=_AUDIT_LIMIT)
+_AUDIT_LOCK = threading.Lock()
+
+
+def _audit(tool: str, status: str, error_type: str | None = None) -> None:
+    # Deliberadamente não registra argumentos nem resultados: eles podem conter segredos.
+    event = {
+        'id': str(uuid.uuid4()),
+        'timestamp': dt.datetime.now(dt.timezone.utc).isoformat(),
+        'tool': tool,
+        'status': status,
+        'error_type': error_type,
+    }
+    with _AUDIT_LOCK:
+        _AUDIT.append(event)
+
+
+def list_audit(limit: int = 50) -> list[dict[str, Any]]:
+    if not isinstance(limit, int) or isinstance(limit, bool) or limit < 1 or limit > 200:
+        raise ToolValidationError('limit deve estar entre 1 e 200')
+    with _AUDIT_LOCK:
+        return [dict(event) for event in list(_AUDIT)[-limit:]][::-1]
+
+
+def clear_audit_for_tests() -> None:
+    with _AUDIT_LOCK:
+        _AUDIT.clear()
 
 
 OPS = {
@@ -137,19 +170,26 @@ def list_tools() -> list[dict[str, Any]]:
 def execute_tool(name: str, arguments: dict[str, Any] | None, granted_permissions: set[str] | None = None) -> dict[str, Any]:
     tool = TOOLS.get(name)
     if not tool:
+        _audit(name, 'denied', 'ToolNotFound')
         raise ToolNotFound('Ferramenta desconhecida')
     granted = granted_permissions or set()
     if tool.spec.permission not in granted:
+        _audit(name, 'denied', 'ToolPermissionDenied')
         raise ToolPermissionDenied(f'Permissão necessária: {tool.spec.permission}')
     args = arguments or {}
-    if not isinstance(args, dict):
-        raise ToolValidationError('arguments deve ser um objeto')
-    allowed = set(tool.spec.schema.get('properties', {}))
-    if tool.spec.schema.get('additionalProperties') is False:
-        unexpected = set(args) - allowed
-        if unexpected:
-            raise ToolValidationError('Argumento não permitido')
-    result = tool.handler(args)
+    try:
+        if not isinstance(args, dict):
+            raise ToolValidationError('arguments deve ser um objeto')
+        allowed = set(tool.spec.schema.get('properties', {}))
+        if tool.spec.schema.get('additionalProperties') is False:
+            unexpected = set(args) - allowed
+            if unexpected:
+                raise ToolValidationError('Argumento não permitido')
+        result = tool.handler(args)
+    except Exception as exc:
+        _audit(name, 'error', type(exc).__name__)
+        raise
+    _audit(name, 'success')
     return {
         'tool': tool.spec.name,
         'permission': tool.spec.permission,
