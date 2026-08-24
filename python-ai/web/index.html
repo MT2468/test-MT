@@ -13,19 +13,28 @@
   <title>Python AI</title>
 </head>
 <body>
-  <div id="app" aria-live="polite"></div>
+  <div id="app" aria-live="polite"><p>Carregando Python AI…</p></div>
   <input id="filePicker" type="file" multiple hidden />
   <input id="backupPicker" type="file" accept="application/json" hidden />
 
   <script src="./secure-storage.js"></script>
   <script src="./backend-sync.js"></script>
-  <script src="https://js.puter.com/v2/"></script>
+  <script src="https://js.puter.com/v2/" async referrerpolicy="no-referrer"></script>
   <script>
     (() => {
       const GENERAL_MODEL = 'dots-studio/dots-3-note-preview:free';
       const CODE_MODEL = 'cohere/north-mini-code:free';
       const CODE_HINTS = /\b(c[oó]digo|programa(?:ção|cao)?|python|javascript|typescript|react|html|css|sql|api|bug|erro|debug|refator|função|funcao|classe|git|github|backend|frontend|algoritmo|script)\b/i;
       const chooseModel = prompt => CODE_HINTS.test(String(prompt || '')) ? CODE_MODEL : GENERAL_MODEL;
+      const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+
+      const waitForPuter = async () => {
+        const deadline = Date.now() + 8000;
+        while (!window.puter?.ai?.chat && Date.now() < deadline) await sleep(100);
+        if (!window.puter?.ai?.chat) {
+          throw new Error('Puter AI indisponível. A interface continua funcionando; tente o modelo novamente quando a conexão externa voltar.');
+        }
+      };
 
       const makeMessages = (systemPrompt, prompt) => {
         const messages = [];
@@ -39,7 +48,7 @@
         async create({ systemPrompt = '' } = {}) {
           return {
             async *promptStreaming(prompt) {
-              if (!window.puter?.ai?.chat) throw new Error('Puter AI indisponível');
+              await waitForPuter();
               const model = chooseModel(prompt);
               const stream = await puter.ai.chat(makeMessages(systemPrompt, prompt), {
                 model,
@@ -54,7 +63,7 @@
               }
             },
             async prompt(prompt) {
-              if (!window.puter?.ai?.chat) throw new Error('Puter AI indisponível');
+              await waitForPuter();
               const model = chooseModel(prompt);
               const result = await puter.ai.chat(makeMessages(systemPrompt, prompt), { model });
               return result?.message?.content || result?.text || String(result || '');
