@@ -147,6 +147,11 @@ async function syncMemories(base,state,ctx){
     }catch(e){console.warn('[Python AI] memória não sincronizada:',e.message)}
   }
 }
+function fileForm(file){
+  const form=new FormData();
+  form.append('file',new Blob([file.text],{type:file.type||'text/plain'}),file.name||'arquivo.txt');
+  return form;
+}
 async function syncProjectFiles(base,state,ctx){
   const conversation=state.conversations?.find(c=>c.id===state.activeConversationId);
   const projectId=conversation?.projectId;
@@ -159,17 +164,16 @@ async function syncProjectFiles(base,state,ctx){
     const previousFingerprint=ctx.data.fingerprints.files[file.id];
     if(remoteId&&previousFingerprint&&previousFingerprint!==nextFingerprint){
       try{
-        await removeRemote(base,'files',remoteId);
-        delete ctx.data.files[file.id];
-        delete ctx.data.fingerprints.files[file.id];
-        remoteId=null;
+        const remote=await jsonFetch(apiUrl(base,`/api/files/${encodeURIComponent(remoteId)}`),{method:'PUT',body:fileForm(file)});
+        remoteId=remote.id;
+        ctx.data.files[file.id]=remoteId;
+        ctx.data.fingerprints.files[file.id]=nextFingerprint;
+        persist(ctx);
       }catch(e){console.warn('[Python AI] edição de arquivo pendente:',e.message);continue}
     }
     if(!remoteId){
       try{
-        const form=new FormData();
-        form.append('file',new Blob([file.text],{type:file.type||'text/plain'}),file.name||'arquivo.txt');
-        const remote=await jsonFetch(apiUrl(base,'/api/files'),{method:'POST',body:form});
+        const remote=await jsonFetch(apiUrl(base,'/api/files'),{method:'POST',body:fileForm(file)});
         remoteId=remote.id;
         ctx.data.files[file.id]=remoteId;
         ctx.data.fingerprints.files[file.id]=nextFingerprint;
@@ -218,7 +222,7 @@ async function observeStream(response){
     window.dispatchEvent(new CustomEvent('python-ai-backend-context',{detail:{context:window.PythonAIBackendSync.lastContext||null,provider:window.PythonAIBackendSync.lastProvider||null}}));
   }catch{}
 }
-window.PythonAIBackendSync={version:'1.3.0',lastContext:null,lastProvider:null,clear(){localStorage.removeItem(SYNC_KEY)}};
+window.PythonAIBackendSync={version:'1.4.0',lastContext:null,lastProvider:null,clear(){localStorage.removeItem(SYNC_KEY)}};
 window.fetch=async function(input,options={}){
   const url=typeof input==='string'?input:input?.url||'';
   let next=options;
