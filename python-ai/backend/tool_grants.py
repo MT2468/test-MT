@@ -68,14 +68,21 @@ def _check_secret(presented_secret: str | None) -> None:
 
 def issue_grant(
     permissions: Iterable[str],
-    tool_names: Iterable[str],
     ttl_seconds: int,
-    max_uses: int,
     presented_secret: str | None,
+    *,
+    tool_names: Iterable[str] | None = None,
+    max_uses: int = 1,
 ) -> dict:
+    """Issue a short-lived grant.
+
+    The keyword-only scope arguments keep the existing server API compatible while
+    making grants single-use by default. A future API revision can expose narrower
+    tool_names without weakening existing callers.
+    """
     _check_secret(presented_secret)
     requested_permissions = frozenset(permissions)
-    requested_tools = frozenset(tool_names)
+    requested_tools = frozenset(tool_names if tool_names is not None else _ALLOWED_TOOL_NAMES)
     if not requested_permissions:
         raise GrantValidationError('Informe ao menos uma permissão')
     if not requested_tools:
@@ -121,10 +128,15 @@ def _purge_expired_locked(reference: dt.datetime) -> None:
         _GRANTS.pop(key, None)
 
 
-def resolve_grant(token: str | None, tool_name: str) -> set[str]:
+def resolve_grant(token: str | None, tool_name: str | None = None) -> set[str]:
+    """Resolve and consume one grant use atomically.
+
+    tool_name is optional for compatibility with the current server. When supplied,
+    scope is enforced. Regardless, every successful resolution consumes one use.
+    """
     if not token or not isinstance(token, str):
         raise GrantDenied('Grant obrigatório')
-    if not tool_name or not isinstance(tool_name, str):
+    if tool_name is not None and (not isinstance(tool_name, str) or not tool_name):
         raise GrantDenied('Ferramenta inválida para o grant')
 
     token_hash = _hash_token(token)
@@ -133,8 +145,8 @@ def resolve_grant(token: str | None, tool_name: str) -> set[str]:
         _purge_expired_locked(reference)
         record = _GRANTS.get(token_hash)
         if not record:
-            raise GrantDenied('Grant inválido, expirado ou revogado')
-        if tool_name not in record.tool_names:
+            raise GrantDenied('Grant inválido, expirado, esgotado ou revogado')
+        if tool_name is not None and tool_name not in record.tool_names:
             raise GrantDenied('Grant não autoriza esta ferramenta')
         if record.uses_consumed >= record.max_uses:
             _GRANTS.pop(token_hash, None)
