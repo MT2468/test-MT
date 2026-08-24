@@ -1,7 +1,5 @@
-import ast
 import datetime as dt
 import json
-import operator
 import os
 import re
 import sqlite3
@@ -15,6 +13,15 @@ from pydantic import BaseModel, Field
 
 from context_builder import build_context_messages
 from model_router import configured_targets, discover_models, public_routes, stream_with_fallback
+from tool_registry import (
+    ToolError,
+    ToolNotFound,
+    ToolPermissionDenied,
+    ToolValidationError,
+    execute_tool,
+    list_audit,
+    list_tools,
+)
 
 DATA = Path(os.getenv('PYTHON_AI_DATA', './data')).resolve()
 FILES = DATA / 'files'
@@ -81,33 +88,6 @@ with connect() as c:
     c.execute('update files set updated_at=created_at where updated_at is null')
     c.commit()
 
-OPS = {
-    ast.Add: operator.add,
-    ast.Sub: operator.sub,
-    ast.Mult: operator.mul,
-    ast.Div: operator.truediv,
-    ast.Mod: operator.mod,
-    ast.Pow: operator.pow,
-    ast.USub: operator.neg,
-    ast.UAdd: operator.pos,
-}
-
-
-def evaluate(node):
-    if isinstance(node, ast.Expression):
-        return evaluate(node.body)
-    if isinstance(node, ast.Constant) and isinstance(node.value, (int, float)):
-        return node.value
-    if isinstance(node, ast.BinOp) and type(node.op) in OPS:
-        return OPS[type(node.op)](evaluate(node.left), evaluate(node.right))
-    if isinstance(node, ast.UnaryOp) and type(node.op) in OPS:
-        return OPS[type(node.op)](evaluate(node.operand))
-    raise ValueError('Expressão não permitida')
-
-
-def calculate(expr: str):
-    return evaluate(ast.parse(expr.replace('^', '**'), mode='eval'))
-
 
 def clean_name(name: str):
     return re.sub(r'[^A-Za-z0-9._-]', '_', name or 'arquivo')[:180]
@@ -135,7 +115,7 @@ def stored_path(fid: str, original: str):
     return FILES / f'{fid}_{clean_name(original)}'
 
 
-app = FastAPI(title='Python AI API', version='3.4.0')
+app = FastAPI(title='Python AI API', version='3.5.0')
 app.add_middleware(CORSMiddleware, allow_origins=CORS, allow_credentials=False, allow_methods=['*'], allow_headers=['*'])
 
 
@@ -168,56 +148,41 @@ class MessageRequest(BaseModel):
     content: str = Field(min_length=1, max_length=200_000)
 
 
+class ToolExecuteRequest(BaseModel):
+    name: str = Field(min_length=1, max_length=120)
+    arguments: dict = Field(default_factory=dict)
+    permissions: list[str] = Field(default_factory=list, max_length=20)
+
+
 def load_chat_context(req: ChatRequest) -> tuple[list[dict], dict]:
     memories: list[dict] = []
     history: list[dict] = []
     selected_files: list[dict] = []
-
     with connect() as c:
         if req.use_memory:
             memories = [dict(r) for r in c.execute('select * from memories order by updated_at desc, created_at desc').fetchall()]
-
         if req.conversation_id:
             if not c.execute('select 1 from conversations where id=?', (req.conversation_id,)).fetchone():
                 raise HTTPException(404, 'Conversa não encontrada')
-            history = [dict(r) for r in c.execute(
-                'select role,content,created_at from messages where conversation_id=? order by created_at',
-                (req.conversation_id,),
-            ).fetchall()]
-
+            history = [dict(r) for r in c.execute('select role,content,created_at from messages where conversation_id=? order by created_at', (req.conversation_id,)).fetchall()]
         if req.file_ids:
             placeholders = ','.join('?' for _ in req.file_ids)
-            selected_files = [dict(r) for r in c.execute(
-                f'select id,name,text_content,created_at from files where id in ({placeholders})',
-                tuple(req.file_ids),
-            ).fetchall()]
+            selected_files = [dict(r) for r in c.execute(f'select id,name,text_content,created_at from files where id in ({placeholders})', tuple(req.file_ids)).fetchall()]
             found = {row['id'] for row in selected_files}
-            missing = [fid for fid in req.file_ids if fid not in found]
-            if missing:
+            if any(fid not in found for fid in req.file_ids):
                 raise HTTPException(404, 'Um ou mais arquivos selecionados não foram encontrados')
-
     return build_context_messages(req.messages, memories, selected_files, history)
 
 
 async def stream_model(messages: list[dict], req: ChatRequest):
-    async for provider, piece in stream_with_fallback(
-        messages,
-        temperature=req.temperature,
-        model_override=req.model,
-    ):
+    async for provider, piece in stream_with_fallback(messages, temperature=req.temperature, model_override=req.model):
         yield provider, piece
 
 
 @app.get('/api/health')
 def health():
     routes = public_routes()
-    return {
-        'ok': True,
-        'version': '3.4.0',
-        'routes': routes,
-        'primary_provider': routes[0]['name'] if routes else None,
-        'primary_model': routes[0]['model'] if routes else None,
-    }
+    return {'ok': True, 'version': '3.5.0', 'routes': routes, 'primary_provider': routes[0]['name'] if routes else None, 'primary_model': routes[0]['model'] if routes else None}
 
 
 @app.get('/api/models')
@@ -225,14 +190,12 @@ async def models():
     routes = configured_targets()
     if not routes:
         raise HTTPException(503, 'Nenhum provedor de IA configurado')
-
     result = []
     any_available = False
     for target in routes:
         public = target.public_dict()
         try:
-            discovered = await discover_models(target)
-            public['models'] = discovered
+            public['models'] = await discover_models(target)
             public['available'] = True
             any_available = True
         except Exception as exc:
@@ -240,14 +203,12 @@ async def models():
             public['available'] = False
             public['error_type'] = type(exc).__name__
         result.append(public)
-
     return {'routes': result, 'any_available': any_available}
 
 
 @app.post('/api/chat/stream')
 async def chat(req: ChatRequest):
     prepared_messages, context_meta = load_chat_context(req)
-
     async def event_stream():
         active_provider = None
         try:
@@ -259,28 +220,49 @@ async def chat(req: ChatRequest):
                 yield 'data: ' + json.dumps({'delta': piece}, ensure_ascii=False) + '\n\n'
             yield 'data: {"done":true}\n\n'
         except Exception as exc:
-            yield 'data: ' + json.dumps({
-                'error': 'Falha ao gerar resposta',
-                'error_type': type(exc).__name__,
-                'provider': active_provider,
-            }, ensure_ascii=False) + '\n\n'
+            yield 'data: ' + json.dumps({'error': 'Falha ao gerar resposta', 'error_type': type(exc).__name__, 'provider': active_provider}, ensure_ascii=False) + '\n\n'
     return StreamingResponse(event_stream(), media_type='text/event-stream', headers={'Cache-Control': 'no-cache'})
+
+
+@app.get('/api/tools')
+def tools():
+    return {'tools': list_tools()}
+
+
+@app.post('/api/tools/execute')
+def tool_execute(body: ToolExecuteRequest):
+    granted = set(body.permissions)
+    try:
+        return execute_tool(body.name, body.arguments, granted)
+    except ToolPermissionDenied as exc:
+        raise HTTPException(403, str(exc)) from exc
+    except ToolNotFound as exc:
+        raise HTTPException(404, str(exc)) from exc
+    except ToolValidationError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    except ToolError as exc:
+        raise HTTPException(400, type(exc).__name__) from exc
+
+
+@app.get('/api/tools/audit')
+def tool_audit(limit: int = 50):
+    try:
+        return {'events': list_audit(limit)}
+    except ToolValidationError as exc:
+        raise HTTPException(400, str(exc)) from exc
 
 
 @app.get('/api/conversations')
 def list_conversations():
     with connect() as c:
-        rows = c.execute('select * from conversations order by updated_at desc').fetchall()
-        return [dict(r) for r in rows]
+        return [dict(r) for r in c.execute('select * from conversations order by updated_at desc').fetchall()]
 
 
 @app.post('/api/conversations')
 def create_conversation(body: ConversationRequest):
-    cid = str(uuid.uuid4())
-    stamp = now()
+    cid = str(uuid.uuid4()); stamp = now()
     with connect() as c:
-        c.execute('insert into conversations values(?,?,?,?,?)', (cid, body.title, body.project_id, stamp, stamp))
-        c.commit()
+        c.execute('insert into conversations values(?,?,?,?,?)', (cid, body.title, body.project_id, stamp, stamp)); c.commit()
     return {'id': cid, 'title': body.title, 'project_id': body.project_id, 'created_at': stamp, 'updated_at': stamp}
 
 
@@ -289,41 +271,31 @@ def update_conversation(cid: str, body: ConversationUpdate):
     stamp = now()
     with connect() as c:
         row = c.execute('select created_at from conversations where id=?', (cid,)).fetchone()
-        if not row:
-            raise HTTPException(404, 'Conversa não encontrada')
-        c.execute('update conversations set title=?, project_id=?, updated_at=? where id=?', (body.title, body.project_id, stamp, cid))
-        c.commit()
+        if not row: raise HTTPException(404, 'Conversa não encontrada')
+        c.execute('update conversations set title=?, project_id=?, updated_at=? where id=?', (body.title, body.project_id, stamp, cid)); c.commit()
     return {'id': cid, 'title': body.title, 'project_id': body.project_id, 'created_at': row['created_at'], 'updated_at': stamp}
 
 
 @app.get('/api/conversations/{cid}/messages')
 def list_messages(cid: str):
     with connect() as c:
-        exists = c.execute('select 1 from conversations where id=?', (cid,)).fetchone()
-        if not exists:
-            raise HTTPException(404, 'Conversa não encontrada')
+        if not c.execute('select 1 from conversations where id=?', (cid,)).fetchone(): raise HTTPException(404, 'Conversa não encontrada')
         return [dict(r) for r in c.execute('select * from messages where conversation_id=? order by created_at', (cid,))]
 
 
 @app.post('/api/conversations/{cid}/messages')
 def add_message(cid: str, body: MessageRequest):
-    mid = str(uuid.uuid4())
-    stamp = now()
+    mid = str(uuid.uuid4()); stamp = now()
     with connect() as c:
-        if not c.execute('select 1 from conversations where id=?', (cid,)).fetchone():
-            raise HTTPException(404, 'Conversa não encontrada')
-        c.execute('insert into messages values(?,?,?,?,?)', (mid, cid, body.role, body.content, stamp))
-        c.execute('update conversations set updated_at=? where id=?', (stamp, cid))
-        c.commit()
+        if not c.execute('select 1 from conversations where id=?', (cid,)).fetchone(): raise HTTPException(404, 'Conversa não encontrada')
+        c.execute('insert into messages values(?,?,?,?,?)', (mid, cid, body.role, body.content, stamp)); c.execute('update conversations set updated_at=? where id=?', (stamp, cid)); c.commit()
     return {'id': mid, 'conversation_id': cid, 'role': body.role, 'content': body.content, 'created_at': stamp}
 
 
 @app.delete('/api/conversations/{cid}')
 def delete_conversation(cid: str):
     with connect() as c:
-        c.execute('delete from messages where conversation_id=?', (cid,))
-        c.execute('delete from conversations where id=?', (cid,))
-        c.commit()
+        c.execute('delete from messages where conversation_id=?', (cid,)); c.execute('delete from conversations where id=?', (cid,)); c.commit()
     return {'ok': True}
 
 
@@ -331,20 +303,16 @@ def delete_conversation(cid: str):
 def list_memories(q: str | None = None):
     with connect() as c:
         if q:
-            pattern = '%' + q + '%'
-            rows = c.execute('select * from memories where title like ? or content like ? order by updated_at desc, created_at desc', (pattern, pattern)).fetchall()
-        else:
-            rows = c.execute('select * from memories order by updated_at desc, created_at desc').fetchall()
+            pattern = '%' + q + '%'; rows = c.execute('select * from memories where title like ? or content like ? order by updated_at desc, created_at desc', (pattern, pattern)).fetchall()
+        else: rows = c.execute('select * from memories order by updated_at desc, created_at desc').fetchall()
         return [dict(r) for r in rows]
 
 
 @app.post('/api/memories')
 def create_memory(body: MemoryRequest):
-    mid = str(uuid.uuid4())
-    stamp = now()
+    mid = str(uuid.uuid4()); stamp = now()
     with connect() as c:
-        c.execute('insert into memories(id,title,content,created_at,updated_at) values(?,?,?,?,?)', (mid, body.title, body.content, stamp, stamp))
-        c.commit()
+        c.execute('insert into memories(id,title,content,created_at,updated_at) values(?,?,?,?,?)', (mid, body.title, body.content, stamp, stamp)); c.commit()
     return {'id': mid, 'title': body.title, 'content': body.content, 'created_at': stamp, 'updated_at': stamp}
 
 
@@ -353,32 +321,16 @@ def update_memory(mid: str, body: MemoryRequest):
     stamp = now()
     with connect() as c:
         row = c.execute('select created_at from memories where id=?', (mid,)).fetchone()
-        if not row:
-            raise HTTPException(404, 'Memória não encontrada')
-        c.execute('update memories set title=?, content=?, updated_at=? where id=?', (body.title, body.content, stamp, mid))
-        c.commit()
+        if not row: raise HTTPException(404, 'Memória não encontrada')
+        c.execute('update memories set title=?, content=?, updated_at=? where id=?', (body.title, body.content, stamp, mid)); c.commit()
     return {'id': mid, 'title': body.title, 'content': body.content, 'created_at': row['created_at'], 'updated_at': stamp}
 
 
 @app.delete('/api/memories/{mid}')
 def delete_memory(mid: str):
     with connect() as c:
-        c.execute('delete from memories where id=?', (mid,))
-        c.commit()
+        c.execute('delete from memories where id=?', (mid,)); c.commit()
     return {'ok': True}
-
-
-@app.post('/api/tools/calculator')
-def calculator(body: dict):
-    try:
-        return {'result': calculate(str(body.get('expression', '')))}
-    except Exception as exc:
-        raise HTTPException(400, str(exc))
-
-
-@app.get('/api/tools/time')
-def clock():
-    return {'result': dt.datetime.now().astimezone().isoformat()}
 
 
 @app.get('/api/files')
@@ -389,61 +341,33 @@ def list_files():
 
 @app.post('/api/files')
 async def upload(file: UploadFile = File(...)):
-    raw = await file.read()
-    validate_upload(raw)
-    fid = str(uuid.uuid4())
-    original = file.filename or 'arquivo'
-    path = stored_path(fid, original)
-    path.write_bytes(raw)
-    text_content = maybe_text(raw, original, file.content_type)
-    stamp = now()
+    raw = await file.read(); validate_upload(raw)
+    fid = str(uuid.uuid4()); original = file.filename or 'arquivo'; path = stored_path(fid, original); path.write_bytes(raw); text_content = maybe_text(raw, original, file.content_type); stamp = now()
     with connect() as c:
-        c.execute(
-            'insert into files(id,name,path,size,mime,text_content,created_at,updated_at) values(?,?,?,?,?,?,?,?)',
-            (fid, original, str(path), len(raw), file.content_type, text_content, stamp, stamp),
-        )
-        c.commit()
+        c.execute('insert into files(id,name,path,size,mime,text_content,created_at,updated_at) values(?,?,?,?,?,?,?,?)', (fid, original, str(path), len(raw), file.content_type, text_content, stamp, stamp)); c.commit()
     return {'id': fid, 'name': original, 'size': len(raw), 'mime': file.content_type, 'text_indexed': bool(text_content), 'created_at': stamp, 'updated_at': stamp}
 
 
 @app.put('/api/files/{fid}')
 async def update_file(fid: str, file: UploadFile = File(...)):
-    raw = await file.read()
-    validate_upload(raw)
-    original = file.filename or 'arquivo'
+    raw = await file.read(); validate_upload(raw); original = file.filename or 'arquivo'
     with connect() as c:
         row = c.execute('select path,created_at from files where id=?', (fid,)).fetchone()
-        if not row:
-            raise HTTPException(404, 'Arquivo não encontrado')
-        old_path = Path(row['path'])
-        created_at = row['created_at']
-
-    path = stored_path(fid, original)
-    tmp_path = path.with_suffix(path.suffix + '.tmp')
-    tmp_path.write_bytes(raw)
-    os.replace(tmp_path, path)
-    if old_path != path:
-        old_path.unlink(missing_ok=True)
-
-    text_content = maybe_text(raw, original, file.content_type)
-    stamp = now()
+        if not row: raise HTTPException(404, 'Arquivo não encontrado')
+        old_path = Path(row['path']); created_at = row['created_at']
+    path = stored_path(fid, original); tmp_path = path.with_suffix(path.suffix + '.tmp'); tmp_path.write_bytes(raw); os.replace(tmp_path, path)
+    if old_path != path: old_path.unlink(missing_ok=True)
+    text_content = maybe_text(raw, original, file.content_type); stamp = now()
     with connect() as c:
-        c.execute(
-            'update files set name=?,path=?,size=?,mime=?,text_content=?,updated_at=? where id=?',
-            (original, str(path), len(raw), file.content_type, text_content, stamp, fid),
-        )
-        c.commit()
+        c.execute('update files set name=?,path=?,size=?,mime=?,text_content=?,updated_at=? where id=?', (original, str(path), len(raw), file.content_type, text_content, stamp, fid)); c.commit()
     return {'id': fid, 'name': original, 'size': len(raw), 'mime': file.content_type, 'text_indexed': bool(text_content), 'created_at': created_at, 'updated_at': stamp}
 
 
 @app.get('/api/files/{fid}/text', response_class=PlainTextResponse)
 def file_text(fid: str):
-    with connect() as c:
-        row = c.execute('select text_content from files where id=?', (fid,)).fetchone()
-    if not row:
-        raise HTTPException(404, 'Arquivo não encontrado')
-    if row['text_content'] is None:
-        raise HTTPException(415, 'Arquivo sem texto indexado')
+    with connect() as c: row = c.execute('select text_content from files where id=?', (fid,)).fetchone()
+    if not row: raise HTTPException(404, 'Arquivo não encontrado')
+    if row['text_content'] is None: raise HTTPException(415, 'Arquivo sem texto indexado')
     return row['text_content']
 
 
@@ -451,11 +375,8 @@ def file_text(fid: str):
 def delete_file(fid: str):
     with connect() as c:
         row = c.execute('select path from files where id=?', (fid,)).fetchone()
-        if not row:
-            return {'ok': True}
-        try:
-            Path(row['path']).unlink(missing_ok=True)
+        if not row: return {'ok': True}
+        try: Path(row['path']).unlink(missing_ok=True)
         finally:
-            c.execute('delete from files where id=?', (fid,))
-            c.commit()
+            c.execute('delete from files where id=?', (fid,)); c.commit()
     return {'ok': True}
