@@ -52,6 +52,19 @@ class AgentExecutorTests(unittest.TestCase):
         result = run_agent_plan([{'name': 'calculator.evaluate', 'arguments': {'expression': '2+3'}}], token)
         self.assertEqual(result['results'][0]['result'], 5)
 
+    def test_entire_plan_is_preflighted_before_any_step_executes(self):
+        token = self.grant(['calculator.evaluate'], 1)
+        with self.assertRaises(AgentSafetyError):
+            run_agent_plan([
+                {'name': 'calculator.evaluate', 'arguments': {'expression': '40+2'}},
+                {'name': 'browser.navigate', 'arguments': {'url': 'https://example.com'}},
+            ], token)
+        # Se o primeiro passo tivesse executado antes da falha do segundo, este uso já estaria esgotado.
+        result = run_agent_plan([
+            {'name': 'calculator.evaluate', 'arguments': {'expression': '40+2'}},
+        ], token)
+        self.assertEqual(result['results'][0]['result'], 42)
+
     def test_registered_tool_still_needs_grant_scope(self):
         token = self.grant(['calculator.evaluate'], 1)
         with self.assertRaises(GrantDenied):
@@ -67,6 +80,16 @@ class AgentExecutorTests(unittest.TestCase):
             }], token)
         result = run_agent_plan([{'name': 'calculator.evaluate', 'arguments': {'expression': '2+2'}}], token)
         self.assertEqual(result['results'][0]['result'], 4)
+
+    def test_invalid_later_step_is_rejected_before_grant_use(self):
+        token = self.grant(['calculator.evaluate'], 1)
+        with self.assertRaises(AgentValidationError):
+            run_agent_plan([
+                {'name': 'calculator.evaluate', 'arguments': {'expression': '3*3'}},
+                {'name': 'calculator.evaluate', 'arguments': [],},
+            ], token)
+        result = run_agent_plan([{'name': 'calculator.evaluate', 'arguments': {'expression': '3*3'}}], token)
+        self.assertEqual(result['results'][0]['result'], 9)
 
     def test_invalid_limits_are_rejected(self):
         token = self.grant(['time.now'], 1)
