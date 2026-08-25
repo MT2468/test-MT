@@ -1,0 +1,19 @@
+{
+  "name": "Nexus AI",
+  "short_name": "Nexus",
+  "description": "Unified multimodal AI workspace in one chat.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#050914",
+  "theme_color": "#07111f",
+  "orientation": "any",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
