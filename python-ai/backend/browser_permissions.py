@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import datetime as dt
+import hashlib
 import secrets
 import threading
 import uuid
@@ -25,7 +26,7 @@ class BrowserPermissionValidationError(BrowserPermissionError):
 @dataclass(frozen=True)
 class BrowserGrant:
     grant_id: str
-    token: str
+    token_hash: str
     tab_id: str
     origin: str
     actions: frozenset[str]
@@ -44,6 +45,10 @@ _LOCK = threading.Lock()
 
 def _now() -> dt.datetime:
     return dt.datetime.now(dt.timezone.utc)
+
+
+def _hash_token(token: str) -> str:
+    return hashlib.sha256(token.encode('utf-8')).hexdigest()
 
 
 def _normalize_origin(value: str) -> str:
@@ -79,9 +84,11 @@ def issue_browser_grant(tab_id: str, origin: str, actions: list[str], ttl_second
         raise BrowserPermissionValidationError(f'ttl_seconds deve estar entre 30 e {_MAX_TTL_SECONDS}')
 
     created_at = _now()
+    token = secrets.token_urlsafe(32)
+    token_hash = _hash_token(token)
     grant = BrowserGrant(
         grant_id=str(uuid.uuid4()),
-        token=secrets.token_urlsafe(32),
+        token_hash=token_hash,
         tab_id=tab_id.strip(),
         origin=normalized_origin,
         actions=requested,
@@ -89,10 +96,10 @@ def issue_browser_grant(tab_id: str, origin: str, actions: list[str], ttl_second
         expires_at=created_at + dt.timedelta(seconds=ttl_seconds),
     )
     with _LOCK:
-        _GRANTS[grant.token] = grant
+        _GRANTS[token_hash] = grant
         _audit_locked('issue', 'success', tab_id=grant.tab_id, origin=grant.origin)
     return {
-        'grant_token': grant.token,
+        'grant_token': token,
         'grant_id': grant.grant_id,
         'tab_id': grant.tab_id,
         'origin': grant.origin,
@@ -110,16 +117,19 @@ def authorize_browser_action(
     action: str,
     confirmed: bool = False,
 ) -> dict[str, Any]:
+    if not isinstance(grant_token, str) or not grant_token:
+        raise BrowserPermissionDenied('Grant de navegador obrigatório')
     if action not in _ALLOWED_ACTIONS:
         raise BrowserPermissionValidationError('ação de navegador inválida')
     origin = _normalize_origin(url)
     reference = _now()
+    token_hash = _hash_token(grant_token)
 
     with _LOCK:
-        grant = _GRANTS.get(grant_token)
+        grant = _GRANTS.get(token_hash)
         if grant is None or grant.expires_at <= reference:
             if grant is not None:
-                _GRANTS.pop(grant_token, None)
+                _GRANTS.pop(token_hash, None)
             _audit_locked('authorize', 'denied', tab_id=tab_id, origin=origin, reason='invalid_or_expired_grant')
             raise BrowserPermissionDenied('Grant de navegador inválido ou expirado')
         if grant.tab_id != tab_id or grant.origin != origin:
@@ -139,8 +149,9 @@ def authorize_browser_action(
 def revoke_browser_grant(grant_token: str) -> bool:
     if not isinstance(grant_token, str) or not grant_token:
         raise BrowserPermissionValidationError('grant_token obrigatório')
+    token_hash = _hash_token(grant_token)
     with _LOCK:
-        grant = _GRANTS.pop(grant_token, None)
+        grant = _GRANTS.pop(token_hash, None)
         _audit_locked('revoke', 'success' if grant else 'not_found', tab_id=grant.tab_id if grant else None, origin=grant.origin if grant else None)
         return grant is not None
 
