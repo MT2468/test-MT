@@ -3,7 +3,9 @@ from __future__ import annotations
 import asyncio
 from dataclasses import dataclass
 
-from .providers import router
+import httpx
+
+from .providers import ProviderError, router
 
 
 @dataclass(frozen=True)
@@ -26,7 +28,7 @@ async def run_agent(agent: Agent, task: str, mode: str) -> dict:
     prompt = f"Role: {agent.name}\nInstruction: {agent.instruction}\n\nTask:\n{task}"
     try:
         result = await router.complete(prompt, mode=mode, preferred=agent.preferred)
-    except Exception:
+    except (ProviderError, httpx.HTTPError):
         result = await router.complete(prompt, mode=mode, preferred="auto")
     return {"agent": agent.name, **result}
 

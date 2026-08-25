@@ -25,7 +25,7 @@ async def run_python(code: str, timeout: int = 8) -> dict:
         )
         try:
             stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=max(1, min(timeout, 20)))
-        except asyncio.TimeoutError:
+        except TimeoutError:
             proc.kill()
             await proc.communicate()
             return {"ok": False, "exit_code": None, "stdout": "", "stderr": "Execution timed out."}

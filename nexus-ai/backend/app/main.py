@@ -3,7 +3,9 @@ from __future__ import annotations
 import shutil
 import uuid
 from pathlib import Path
+from typing import Annotated
 
+import httpx
 from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
@@ -92,7 +94,7 @@ async def chat(req: ChatRequest) -> dict:
         prompt = f"Relevant memory:\n{memory_context}\n\nUser message:\n{req.message}"
     try:
         result = await router.complete(prompt, mode=req.mode, preferred=req.model)
-    except (ProviderError, Exception) as exc:
+    except (ProviderError, httpx.HTTPError) as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     add_message("user", req.message, req.project)
     add_message("assistant", result["text"], req.project)
@@ -129,7 +131,7 @@ def memory_add(req: MemoryRequest) -> dict:
 
 
 @app.post("/api/files/upload")
-async def upload(file: UploadFile = File(...)) -> dict:
+async def upload(file: Annotated[UploadFile, File()]) -> dict:
     name = f"{uuid.uuid4().hex[:8]}-{Path(file.filename or 'upload').name}"
     path = settings.data_dir / "uploads" / name
     with path.open("wb") as target:
@@ -165,8 +167,8 @@ def download_artifact(filename: str) -> FileResponse:
 async def images(req: ImageRequest) -> dict:
     try:
         return await router.image(req.prompt, req.size)
-    except Exception as exc:
-        raise HTTPException(503, str(exc)) from exc
+    except (ProviderError, httpx.HTTPError) as exc:
+        raise HTTPException(503, detail=str(exc)) from exc
 
 
 frontend = Path(__file__).resolve().parents[2] / "frontend"
