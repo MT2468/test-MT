@@ -48,7 +48,6 @@ class AgentExecutorTests(unittest.TestCase):
         token = self.grant(['calculator.evaluate'], 1)
         with self.assertRaises(AgentSafetyError):
             run_agent_plan([{'name': 'browser.navigate', 'arguments': {'url': 'https://example.com'}}], token)
-        # A blocked unknown tool must not consume the valid calculator use.
         result = run_agent_plan([{'name': 'calculator.evaluate', 'arguments': {'expression': '2+3'}}], token)
         self.assertEqual(result['results'][0]['result'], 5)
 
@@ -59,7 +58,6 @@ class AgentExecutorTests(unittest.TestCase):
                 {'name': 'calculator.evaluate', 'arguments': {'expression': '40+2'}},
                 {'name': 'browser.navigate', 'arguments': {'url': 'https://example.com'}},
             ], token)
-        # Se o primeiro passo tivesse executado antes da falha do segundo, este uso já estaria esgotado.
         result = run_agent_plan([
             {'name': 'calculator.evaluate', 'arguments': {'expression': '40+2'}},
         ], token)
@@ -72,7 +70,6 @@ class AgentExecutorTests(unittest.TestCase):
                 {'name': 'calculator.evaluate', 'arguments': {'expression': '20+22'}},
                 {'name': 'time.now', 'arguments': {}},
             ], token)
-        # O plano inteiro deve falhar antes de consumir o uso válido da calculadora.
         result = run_agent_plan([
             {'name': 'calculator.evaluate', 'arguments': {'expression': '20+22'}},
         ], token)
@@ -85,7 +82,6 @@ class AgentExecutorTests(unittest.TestCase):
                 {'name': 'calculator.evaluate', 'arguments': {'expression': '7*6'}},
                 {'name': 'time.now', 'arguments': {}},
             ], token)
-        # Capacidade insuficiente não pode consumir parcialmente o grant.
         result = run_agent_plan([
             {'name': 'calculator.evaluate', 'arguments': {'expression': '7*6'}},
         ], token)
@@ -112,7 +108,7 @@ class AgentExecutorTests(unittest.TestCase):
         with self.assertRaises(AgentValidationError):
             run_agent_plan([
                 {'name': 'calculator.evaluate', 'arguments': {'expression': '3*3'}},
-                {'name': 'calculator.evaluate', 'arguments': [],},
+                {'name': 'calculator.evaluate', 'arguments': []},
             ], token)
         result = run_agent_plan([{'name': 'calculator.evaluate', 'arguments': {'expression': '3*3'}}], token)
         self.assertEqual(result['results'][0]['result'], 9)
@@ -126,10 +122,18 @@ class AgentExecutorTests(unittest.TestCase):
 
     def test_timeout_is_checked_between_steps(self):
         token = self.grant(['time.now'], 2)
-        with patch.object(agent_executor.time, 'monotonic', side_effect=[0.0, 0.0, 10.0]):
+        with patch.object(agent_executor.time, 'monotonic', side_effect=[0.0, 0.0, 0.1, 10.0]):
             with self.assertRaises(AgentTimeoutError):
                 run_agent_plan([
                     {'name': 'time.now', 'arguments': {}},
+                    {'name': 'time.now', 'arguments': {}},
+                ], token, max_runtime_seconds=1.0)
+
+    def test_timeout_is_checked_after_a_single_slow_tool(self):
+        token = self.grant(['time.now'], 1)
+        with patch.object(agent_executor.time, 'monotonic', side_effect=[0.0, 0.0, 2.0]):
+            with self.assertRaises(AgentTimeoutError):
+                run_agent_plan([
                     {'name': 'time.now', 'arguments': {}},
                 ], token, max_runtime_seconds=1.0)
 
