@@ -1,4 +1,4 @@
-Enter file contents hereconst CACHE_NAME = 'python-ai-definitive-v10';
+/*Enter file contents hereconst */  const CACHE_NAME = 'python-ai-definitive-v10';
 const CORE = [
   './',
   './index.html',
