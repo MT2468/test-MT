@@ -1,0 +1,37 @@
+name: Nexus Demo CI
+
+on:
+  pull_request:
+    paths:
+      - 'nexus-ai-demo/**'
+      - '.github/workflows/nexus-demo-ci.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'nexus-ai-demo/**'
+      - '.github/workflows/nexus-demo-ci.yml'
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Check JavaScript syntax
+        run: node --check nexus-ai-demo/app.js
+      - name: Parse HTML and validate local assets
+        run: |
+          python - <<'PY'
+          from html.parser import HTMLParser
+          from pathlib import Path
+          import json
+
+          root = Path('nexus-ai-demo')
+          html = (root / 'index.html').read_text(encoding='utf-8')
+          HTMLParser().feed(html)
+          manifest = json.loads((root / 'manifest.webmanifest').read_text(encoding='utf-8'))
+          assert manifest['start_url'] == './'
+          for name in ['app.js', 'styles.css', 'manifest.webmanifest', 'icon.svg', 'sw.js']:
+              path = root / name
+              assert path.exists() and path.stat().st_size > 0, f'missing {name}'
+          print('Nexus demo static validation passed')
+          PY
