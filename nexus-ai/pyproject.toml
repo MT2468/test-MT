@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=75"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "nexus-ai"
+version = "0.1.0"
+description = "Multimodel AI workspace"
+requires-python = ">=3.11"
+dependencies = [
+  "fastapi>=0.116",
+  "uvicorn[standard]>=0.35",
+  "httpx>=0.28",
+  "python-multipart>=0.0.20",
+  "pydantic>=2.11",
+  "python-dotenv>=1.1",
+  "python-docx>=1.2",
+  "python-pptx>=1.0",
+  "openpyxl>=3.1",
+  "reportlab>=4.4",
+  "pypdf>=5.9"
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.4", "ruff>=0.12"]
+
+[tool.setuptools.packages.find]
+include = ["backend*"]
+
+[tool.ruff]
+line-length = 100

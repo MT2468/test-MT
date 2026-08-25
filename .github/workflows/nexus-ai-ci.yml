@@ -1,0 +1,21 @@
+name: Nexus AI CI
+on:
+  push:
+    branches: [nexus-ai-v1]
+    paths: ['nexus-ai/**', '.github/workflows/nexus-ai-ci.yml']
+  pull_request:
+    paths: ['nexus-ai/**', '.github/workflows/nexus-ai-ci.yml']
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: nexus-ai
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - run: pip install -e '.[dev]'
+      - run: ruff check backend tests
+      - run: pytest -q
