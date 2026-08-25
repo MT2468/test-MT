@@ -55,7 +55,7 @@ def create_artifact(kind: str, title: str, content: str) -> Path:
     elif kind == "pdf":
         path = root / f"{base}.pdf"
         pdf = canvas.Canvas(str(path), pagesize=A4)
-        width, height = A4
+        _, height = A4
         y = height - 60
         pdf.setFont("Helvetica-Bold", 18)
         pdf.drawString(50, y, title[:75])
