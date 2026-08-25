@@ -2,85 +2,96 @@
 <html lang="pt-BR">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
   <meta name="theme-color" content="#07111f" />
+  <meta name="description" content="Nexus AI: chat multimodal com pesquisa, arquivos, criação, código, voz e memória." />
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="icon" href="icon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="styles.css" />
   <title>Nexus AI</title>
   <script src="https://js.puter.com/v2/"></script>
-  <style>
-    :root{--bg:#060b14;--panel:#0c1524;--panel2:#111d30;--line:#20304a;--text:#eef4ff;--muted:#8ea0bd;--blue:#2da8ff;--violet:#8b5cff;--cyan:#41e2ff;--ok:#3ee9a7;--danger:#ff6584}
-    *{box-sizing:border-box} body{margin:0;background:radial-gradient(circle at 70% -10%,#162f68 0,#0b1730 23%,var(--bg) 55%);color:var(--text);font-family:Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,sans-serif;min-height:100vh}
-    button,select,textarea,input{font:inherit;color:inherit} button,select{border:1px solid var(--line);background:#101a2a;border-radius:12px} button{cursor:pointer}.app{display:grid;grid-template-columns:250px 1fr;min-height:100vh}.side{border-right:1px solid var(--line);padding:24px 16px;background:rgba(6,11,20,.78);backdrop-filter:blur(18px);position:sticky;top:0;height:100vh}.brand{display:flex;align-items:center;gap:10px;font-size:24px;font-weight:800;padding:4px 10px 24px}.logo{width:34px;height:34px;border-radius:10px;background:linear-gradient(135deg,var(--cyan),var(--violet));display:grid;place-items:center;color:#06101c;font-weight:1000;box-shadow:0 0 28px #4e8cff55}.nav{display:grid;gap:7px}.nav button{display:flex;gap:11px;align-items:center;padding:12px 14px;background:transparent;border-color:transparent;text-align:left;color:#bac8dc}.nav button.active{background:linear-gradient(90deg,#0f3f74aa,#171d43aa);border-color:#246fc4;color:white;box-shadow:0 0 18px #2088ff22}.side-note{position:absolute;bottom:22px;left:18px;right:18px;padding:14px;border:1px solid var(--line);border-radius:16px;background:#0b1423}.side-note b{color:var(--ok)}.main{padding:20px 24px 32px;min-width:0}.top{height:62px;display:flex;align-items:center;gap:12px;border-bottom:1px solid var(--line);padding-bottom:18px}.top select{padding:9px 12px;max-width:280px}.grow{flex:1}.badge{font-size:12px;padding:8px 10px;border:1px solid #315278;border-radius:999px;color:#b9dcff}.hero{display:flex;justify-content:space-between;align-items:end;padding:28px 4px 18px}.hero h1{font-size:32px;margin:0 0 6px}.hero p{margin:0;color:var(--muted)}.workspace{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:18px}.panel{border:1px solid var(--line);border-radius:20px;background:linear-gradient(180deg,#0d1728ee,#09111fee);box-shadow:0 25px 80px #0006;overflow:hidden}.chat{min-height:68vh;display:flex;flex-direction:column}.messages{flex:1;padding:20px;overflow:auto;max-height:64vh}.msg{padding:14px 16px;border-radius:16px;margin:0 0 12px;line-height:1.5;white-space:pre-wrap}.msg.user{margin-left:13%;background:#17253a;border:1px solid #29405f}.msg.ai{margin-right:8%;background:linear-gradient(135deg,#10223b,#171930);border:1px solid #284a75}.msg strong{display:block;margin-bottom:5px}.composer{border-top:1px solid var(--line);padding:14px;display:grid;grid-template-columns:1fr auto;gap:10px}.composer textarea{min-height:70px;resize:vertical;border:1px solid #29415f;background:#07101d;border-radius:16px;padding:13px;outline:none}.composer textarea:focus{border-color:#398eea;box-shadow:0 0 0 3px #2d8eff22}.primary{background:linear-gradient(135deg,#405bff,#8e52ff)!important;border:0!important;padding:0 20px;font-weight:700;box-shadow:0 0 25px #645cff44}.right{display:grid;gap:18px;align-content:start}.card{padding:18px}.card h3{margin:0 0 12px}.muted{color:var(--muted)}.model-meta{font-size:13px;line-height:1.65}.tool-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px}.tool-grid button{padding:12px 8px}.tool-grid button.active{border-color:#3d84ff;background:#13254a}.view{display:none}.view.active{display:block}.studio{padding:20px}.studio textarea{width:100%;min-height:130px;background:#07101d;border:1px solid var(--line);border-radius:16px;padding:14px}.studio-actions{display:flex;gap:10px;margin-top:12px}.studio-actions button{padding:12px 18px}.result{margin-top:20px;border:1px dashed #35517a;border-radius:18px;min-height:210px;padding:18px;display:grid;place-items:center;overflow:hidden}.result img{max-width:100%;border-radius:14px}.voice-orb{width:150px;height:150px;border-radius:50%;margin:40px auto 24px;background:radial-gradient(circle at 35% 30%,#65e6ff,#4b4dff 43%,#2a164d 68%,#080d19 70%);box-shadow:0 0 70px #5a5dff88;display:grid;place-items:center;font-size:42px}.voice-controls{text-align:center}.voice-controls button{padding:13px 20px;margin:4px}.status{margin-top:15px;text-align:center;color:var(--muted)}.models{max-height:300px;overflow:auto;font-size:12px}.model-row{padding:8px 0;border-bottom:1px solid #1c2b41}.notice{padding:12px;border:1px solid #304a6e;background:#0b1c31;border-radius:14px;color:#bcd1eb;font-size:12px;line-height:1.45}.error{color:#ff93a7}.ok{color:var(--ok)}
-    @media(max-width:980px){.app{grid-template-columns:1fr}.side{position:static;height:auto;border-right:0;border-bottom:1px solid var(--line);padding:12px}.brand{padding-bottom:10px}.nav{display:flex;overflow:auto}.nav button{white-space:nowrap}.side-note{display:none}.main{padding:14px}.workspace{grid-template-columns:1fr}.right{grid-template-columns:1fr 1fr}.top{overflow:auto}.hero{padding-top:18px}.chat{min-height:60vh}.messages{max-height:54vh}}
-    @media(max-width:620px){.right{grid-template-columns:1fr}.top .badge{display:none}.hero h1{font-size:25px}.composer{grid-template-columns:1fr}.primary{min-height:48px}.main{padding:10px}.panel{border-radius:16px}}
-  </style>
+  <script src="https://cdn.jsdelivr.net/npm/marked@16.2.1/lib/marked.umd.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/dompurify@3.2.6/dist/purify.min.js"></script>
 </head>
 <body>
 <div class="app">
-  <aside class="side">
-    <div class="brand"><span class="logo">X</span>Nexus AI</div>
-    <nav class="nav">
-      <button class="active" data-view="chat">💬 Chat</button>
-      <button data-view="images">🖼️ Imagens</button>
-      <button data-view="voice">🎙️ Voz</button>
-      <button data-view="models">🧠 Modelos</button>
-    </nav>
-    <div class="side-note"><b>● Online</b><div class="muted" style="font-size:12px;margin-top:5px">Versão pública de teste via Puter.js. Sem chave exposta no GitHub.</div></div>
+  <aside class="sidebar">
+    <div class="brand-row"><span class="logo">X</span><span class="brand">Nexus AI</span></div>
+    <button id="newChat" class="new-chat">＋ Novo chat</button>
+    <div class="sidebar-section-title">Conversas</div>
+    <div id="chatList" class="chat-list"></div>
+    <div class="sidebar-footer">
+      <div class="account-card"><span class="avatar">N</span><div class="account-copy"><b id="accountName">Puter</b><span id="accountState">Conectando…</span></div></div>
+    </div>
   </aside>
 
   <main class="main">
-    <header class="top">
-      <select id="model"><option value="gpt-5.6-luna">GPT-5.6 Luna</option></select>
-      <select id="reasoning"><option value="balanced">Balanced</option><option value="maximum">Maximum</option><option value="fast">Fast</option></select>
-      <div class="grow"></div><span class="badge" id="authBadge">Conectando…</span>
+    <header class="topbar">
+      <button id="openDrawer" class="icon-btn mobile-only" aria-label="Abrir conversas">☰</button>
+      <select id="modelSelect" class="top-select" aria-label="Modelo"><option value="auto">Auto · melhor disponível</option></select>
+      <select id="reasoningSelect" class="top-select" aria-label="Nível de raciocínio">
+        <option value="balanced">Balanced</option>
+        <option value="maximum">Maximum</option>
+        <option value="fast">Fast</option>
+      </select>
+      <div class="top-spacer"></div>
+      <span class="status-dot"><i></i><span id="statusText">Online</span></span>
+      <button id="exportChat" class="ghost-btn hide-mobile">Exportar</button>
+      <button id="clearChat" class="icon-btn" title="Limpar chat" aria-label="Limpar chat">⌫</button>
     </header>
 
-    <section id="chat" class="view active">
-      <div class="hero"><div><h1>O que vamos construir hoje?</h1><p>Chat multimodelo real, direto no navegador.</p></div></div>
-      <div class="workspace">
-        <section class="panel chat">
-          <div id="messages" class="messages"><div class="msg ai"><strong>Nexus AI</strong>Estou online. Escolha um modelo, escreva uma mensagem e teste.</div></div>
-          <div class="composer"><textarea id="prompt" placeholder="Mensagem para Nexus AI..."></textarea><button id="send" class="primary">Enviar ↑</button></div>
-        </section>
-        <aside class="right">
-          <div class="panel card"><h3>Roteamento</h3><div id="routeMeta" class="model-meta muted">Modelo: GPT-5.6 Luna<br>Modo: Balanced</div></div>
-          <div class="panel card"><h3>Capacidades</h3><div class="tool-grid"><button class="active">Chat</button><button>Multimodelo</button><button>Imagens</button><button>Voz</button></div></div>
-          <div class="notice">Na primeira chamada, o Puter pode pedir autenticação/autorização. O modelo é user-pays: nenhuma chave de API sua fica embutida neste site.</div>
-        </aside>
+    <section class="chat-shell">
+      <div id="messages" class="messages" aria-live="polite"></div>
+
+      <div id="toolSheet" class="tool-sheet hidden" role="dialog" aria-label="Ferramentas">
+        <div class="tool-grid">
+          <button class="tool-button" data-action="files">📎<b>Arquivos</b><span>PDF, imagens, docs e mais</span></button>
+          <button class="tool-button" data-action="camera">📷<b>Câmera</b><span>Fotografe e pergunte</span></button>
+          <button class="tool-button" data-action="voice">🎙️<b>Voz</b><span>Transcreva sua fala</span></button>
+          <button class="tool-button" data-action="image">🖼️<b>Imagem</b><span>Gerar ou editar no chat</span></button>
+          <button class="tool-button" data-action="video">🎬<b>Vídeo</b><span>Crie um clipe por prompt</span></button>
+          <button class="tool-button" data-action="file">📄<b>Criar arquivo</b><span>PDF, DOCX, XLSX, PPTX…</span></button>
+          <button class="tool-button" data-action="python">⌘<b>Python</b><span>Executar código no navegador</span></button>
+          <button class="tool-button" data-action="research">⌕<b>Pesquisa</b><span>Web atual com fontes</span></button>
+          <button class="tool-button" data-action="council">✦<b>Council</b><span>Vários modelos, uma síntese</span></button>
+          <button class="tool-button" data-action="export">↗<b>Exportar chat</b><span>Receba um link Markdown</span></button>
+        </div>
       </div>
-    </section>
 
-    <section id="images" class="view">
-      <div class="hero"><div><h1>Creative Studio</h1><p>Geração de imagem usando a infraestrutura de IA do Puter.</p></div></div>
-      <div class="panel studio"><textarea id="imagePrompt" placeholder="Descreva a imagem com detalhes..."></textarea><div class="studio-actions"><button id="makeImage" class="primary">Gerar imagem</button><button id="clearImage">Limpar</button></div><div id="imageResult" class="result muted">A imagem gerada aparecerá aqui.</div></div>
-    </section>
+      <div id="commandMenu" class="command-menu hidden"></div>
 
-    <section id="voice" class="view">
-      <div class="hero"><div><h1>Voice Mode</h1><p>Fale com a Nexus usando reconhecimento do navegador e resposta por voz.</p></div></div>
-      <div class="panel studio"><div class="voice-orb">✦</div><div class="voice-controls"><button id="listen" class="primary">🎙️ Ouvir</button><button id="stopSpeech">■ Parar voz</button></div><div id="voiceStatus" class="status">Pronto.</div></div>
-    </section>
-
-    <section id="models" class="view">
-      <div class="hero"><div><h1>Modelos disponíveis</h1><p>A lista é carregada em tempo real pelo Puter.</p></div></div>
-      <div class="panel studio"><div id="modelList" class="models muted">Carregando catálogo...</div></div>
+      <div class="composer-wrap">
+        <div id="attachmentTray" class="attachment-tray"></div>
+        <div id="modeRail" class="mode-rail">
+          <button class="mode-btn active" data-mode="auto"><strong>Auto</strong></button>
+          <button class="mode-btn" data-mode="research">Pesquisa</button>
+          <button class="mode-btn" data-mode="code">Código</button>
+          <button class="mode-btn" data-mode="create">Criar</button>
+          <button class="mode-btn" data-mode="council">Council</button>
+        </div>
+        <div class="composer">
+          <button id="plusButton" class="plus-btn" aria-label="Adicionar ferramenta">＋</button>
+          <textarea id="prompt" class="prompt" rows="1" placeholder="Pergunte, pesquise, crie um arquivo, imagem, vídeo, código…"></textarea>
+          <button id="sendButton" class="send-btn" aria-label="Enviar">↑</button>
+        </div>
+        <div class="composer-note">A Nexus pode usar modelos e ferramentas pagas pela sua conta Puter. Links de arquivos gerados expiram.</div>
+      </div>
     </section>
   </main>
 </div>
-<script>
-const SYSTEM=`Você é Nexus AI, uma assistente multimodelo avançada. Responda em português do Brasil quando o usuário falar português. Seja precisa, direta, útil e estruturada. Para programação, aja como um engenheiro experiente: investigue requisitos, explique decisões importantes e produza código robusto. Não alegue ter usado ferramentas que não foram realmente usadas.`;
-const state={history:[],models:[]};
-const $=s=>document.querySelector(s);
-function textFromResponse(r){if(typeof r==='string')return r;if(!r)return '';if(typeof r.message?.content==='string')return r.message.content;if(Array.isArray(r.message?.content))return r.message.content.map(x=>x.text||x.content||'').join('\n');if(typeof r.text==='string')return r.text;if(typeof r.content==='string')return r.content;return JSON.stringify(r,null,2)}
-function addMsg(role,text){const d=document.createElement('div');d.className='msg '+(role==='user'?'user':'ai');const b=document.createElement('strong');b.textContent=role==='user'?'Você':'Nexus AI';d.appendChild(b);d.appendChild(document.createTextNode(text));$('#messages').appendChild(d);$('#messages').scrollTop=$('#messages').scrollHeight}
-async function chatCall(userText){const model=$('#model').value;const mode=$('#reasoning').value;const instruction=mode==='maximum'?SYSTEM+' Use raciocínio aprofundado e revise sua resposta antes de concluir.':mode==='fast'?SYSTEM+' Priorize concisão e velocidade.':SYSTEM;state.history.push({role:'user',content:userText});const msgs=[{role:'system',content:instruction},...state.history.slice(-18)];let r;try{r=await puter.ai.chat(msgs,false,{model})}catch(e){const fallback=msgs.map(m=>`${m.role.toUpperCase()}: ${m.content}`).join('\n\n');r=await puter.ai.chat(fallback,{model})}const text=textFromResponse(r);state.history.push({role:'assistant',content:text});return text}
-$('#send').onclick=async()=>{const p=$('#prompt');const t=p.value.trim();if(!t)return;p.value='';addMsg('user',t);const b=$('#send');b.disabled=true;b.textContent='Pensando…';try{const text=await chatCall(t);addMsg('assistant',text)}catch(e){addMsg('assistant','Erro ao chamar o modelo: '+(e.message||e));}finally{b.disabled=false;b.textContent='Enviar ↑'}};
-$('#prompt').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();$('#send').click()}});
-$('#model').onchange=updateMeta;$('#reasoning').onchange=updateMeta;function updateMeta(){const label=$('#model').selectedOptions[0]?.textContent||$('#model').value;$('#routeMeta').innerHTML=`Modelo: ${label}<br>Modo: ${$('#reasoning').selectedOptions[0].textContent}`}
-async function loadModels(){try{state.models=await puter.ai.listModels();const sel=$('#model');sel.innerHTML='';const preferred=['gpt-5.6-luna','claude-opus-4-8','claude-sonnet-4-6','gemini-3.1-pro','grok-4.1-fast'];const sorted=[...state.models].sort((a,b)=>{const ai=preferred.indexOf(a.id),bi=preferred.indexOf(b.id);if(ai>=0||bi>=0)return (ai<0?999:ai)-(bi<0?999:bi);return (a.name||a.id).localeCompare(b.name||b.id)});for(const m of sorted){const o=document.createElement('option');o.value=m.id;o.textContent=(m.name||m.id)+' · '+(m.provider||'');sel.appendChild(o)}if(sorted.some(m=>m.id==='gpt-5.6-luna'))sel.value='gpt-5.6-luna';updateMeta();$('#modelList').innerHTML='';for(const m of sorted.slice(0,250)){const d=document.createElement('div');d.className='model-row';d.textContent=`${m.name||m.id} — ${m.id} — ${m.provider||'provider'}`;$('#modelList').appendChild(d)}}catch(e){$('#modelList').textContent='Não foi possível carregar o catálogo: '+(e.message||e)}}
-async function authStatus(){try{if(puter.auth.isSignedIn()){const u=await puter.auth.getUser();$('#authBadge').textContent='● '+(u.username||'Puter conectado');$('#authBadge').classList.add('ok')}else $('#authBadge').textContent='● Pronto para autenticar'}catch{$('#authBadge').textContent='● Puter carregado'}}
-$('#makeImage').onclick=async()=>{const p=$('#imagePrompt').value.trim();if(!p)return;const b=$('#makeImage');b.disabled=true;b.textContent='Gerando…';const out=$('#imageResult');out.textContent='Gerando imagem...';try{const img=await puter.ai.txt2img(p);out.innerHTML='';out.appendChild(img)}catch(e){out.textContent='Erro: '+(e.message||e);out.classList.add('error')}finally{b.disabled=false;b.textContent='Gerar imagem'}};$('#clearImage').onclick=()=>{$('#imageResult').textContent='A imagem gerada aparecerá aqui.'};
-const SR=window.SpeechRecognition||window.webkitSpeechRecognition;$('#listen').onclick=()=>{if(!SR){$('#voiceStatus').textContent='Reconhecimento de voz não disponível neste navegador.';return}const rec=new SR();rec.lang='pt-BR';rec.interimResults=false;rec.onstart=()=>$('#voiceStatus').textContent='Ouvindo…';rec.onerror=e=>$('#voiceStatus').textContent='Erro de microfone: '+e.error;rec.onresult=async e=>{const text=e.results[0][0].transcript;$('#voiceStatus').textContent='Você: '+text+'\nNexus está pensando…';try{const answer=await chatCall(text);$('#voiceStatus').textContent='Você: '+text+'\n\nNexus: '+answer;try{const audio=await puter.ai.txt2speech(answer);audio.play()}catch{const u=new SpeechSynthesisUtterance(answer);u.lang='pt-BR';speechSynthesis.speak(u)}}catch(err){$('#voiceStatus').textContent='Erro: '+(err.message||err)}};rec.start()};$('#stopSpeech').onclick=()=>{speechSynthesis.cancel();$('#voiceStatus').textContent='Voz interrompida.'};
-document.querySelectorAll('.nav button').forEach(btn=>btn.onclick=()=>{document.querySelectorAll('.nav button').forEach(b=>b.classList.remove('active'));btn.classList.add('active');document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));$('#'+btn.dataset.view).classList.add('active')});
-loadModels();authStatus();
-</script>
+
+<div id="drawerBackdrop" class="drawer-backdrop hidden"></div>
+<aside id="mobileDrawer" class="mobile-drawer">
+  <div class="brand-row"><span class="logo">X</span><span class="brand">Nexus AI</span><div class="top-spacer"></div><button id="closeDrawer" class="icon-btn">×</button></div>
+  <button id="mobileNewChat" class="new-chat">＋ Novo chat</button>
+  <div class="sidebar-section-title">Conversas</div>
+  <div id="mobileChatList" class="chat-list"></div>
+  <div class="sidebar-footer"><button id="mobileExport" class="ghost-btn" style="width:100%">Exportar conversa</button></div>
+</aside>
+
+<input id="fileInput" type="file" multiple class="hidden" />
+<input id="cameraInput" type="file" accept="image/*" capture="environment" class="hidden" />
+<div id="toasts" class="toast-stack"></div>
+<script type="module" src="app.js"></script>
 </body>
 </html>
