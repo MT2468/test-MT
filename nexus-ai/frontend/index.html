@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Nexus AI</title>
+  <link rel="stylesheet" href="/assets/styles.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand"><span class="brand-mark">✦</span><strong>Nexus AI</strong></div>
+      <nav id="nav">
+        <button class="active" data-view="chat">💬 Chat</button>
+        <button data-view="research">◉ Research</button>
+        <button data-view="agents">⬡ Agents</button>
+        <button data-view="code">&lt;/&gt; Code</button>
+        <button data-view="images">▧ Images</button>
+        <button data-view="work">▣ Work</button>
+        <button data-view="voice">◖ Voice</button>
+        <button data-view="memory">▱ Memory</button>
+      </nav>
+      <div class="workspace-card"><small>WORKSPACE</small><strong>Personal</strong><span>Python-first AI system</span></div>
+      <div class="status" id="health">Checking backend…</div>
+    </aside>
+    <main>
+      <header>
+        <div><h1 id="view-title">Chat</h1><p id="view-subtitle">Think, build, research and create.</p></div>
+        <div class="controls">
+          <select id="model"><option value="auto">Model: Auto</option><option value="sol">Sol</option><option value="terra">Terra</option><option value="luna">Luna</option><option value="claude">Claude</option><option value="gemini">Gemini</option><option value="grok">Grok</option><option value="perplexity">Perplexity</option></select>
+          <select id="mode"><option value="balanced">Balanced</option><option value="economy">Economy</option><option value="maximum">Maximum</option></select>
+        </div>
+      </header>
+      <section id="view" class="view"></section>
+    </main>
+  </div>
+  <template id="chat-template">
+    <div class="grid chat-grid"><section class="panel conversation"><div id="messages" class="messages"><div class="hero"><span class="orb">✦</span><h2>O que vamos resolver?</h2><p>Chat multimodelo com memória e roteamento automático.</p></div></div><div class="composer"><textarea id="prompt" placeholder="Mensagem para Nexus AI..."></textarea><div class="row"><label class="upload">📎 Arquivo<input id="file" type="file" hidden></label><button id="send" class="primary">Enviar ↑</button></div></div></section><aside class="panel side-context"><h3>Contexto</h3><div id="file-context" class="muted">Nenhum arquivo anexado.</div><h3>Modelo</h3><div id="route-info" class="metric">Auto</div></aside></div>
+  </template>
+  <script src="/assets/app.js"></script>
+</body>
+</html>
