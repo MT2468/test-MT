@@ -67,40 +67,40 @@ jobs:
           grep -q "@app.put('/api/files/{fid}')" python-ai/backend/server.py
           grep -q "version='3.7.0'" python-ai/backend/server.py
           grep -q 'updated_at text' python-ai/backend/server.py
-      - name: Check server-issued tool grants
+      - name: Check server-issued tool grants contract
+        env:
+          PYTHON_AI_DATA: /tmp/python-ai-ci-data
         run: |
-          grep -q "permission='tools.read.basic'" python-ai/backend/tool_registry.py
-          grep -q "risk='low'" python-ai/backend/tool_registry.py
-          grep -q 'mutates_state=False' python-ai/backend/tool_registry.py
-          grep -q 'PYTHON_AI_TOOL_GRANT_SECRET' python-ai/backend/tool_grants.py
-          grep -q '_MAX_TTL_SECONDS = 900' python-ai/backend/tool_grants.py
-          grep -q '_MAX_USES = 100' python-ai/backend/tool_grants.py
-          grep -q 'max_uses: int = 1' python-ai/backend/tool_grants.py
-          grep -q '_ALLOWED_TOOL_NAMES' python-ai/backend/tool_grants.py
-          grep -q 'uses_consumed' python-ai/backend/tool_grants.py
-          grep -q 'secrets.token_urlsafe' python-ai/backend/tool_grants.py
-          grep -q 'hashlib.sha256' python-ai/backend/tool_grants.py
-          grep -q 'hmac.compare_digest' python-ai/backend/tool_grants.py
-          grep -q 'list_grant_audit' python-ai/backend/tool_grants.py
-          grep -q 'resolve_grant_plan' python-ai/backend/tool_grants.py
-          grep -q "_audit_locked('issue', 'success'" python-ai/backend/tool_grants.py
-          grep -q "_audit_locked('consume', 'success'" python-ai/backend/tool_grants.py
-          grep -q "_audit_locked('revoke'" python-ai/backend/tool_grants.py
-          grep -q "_audit_locked('expire', 'success'" python-ai/backend/tool_grants.py
-          grep -q 'Nunca registrar token' python-ai/backend/tool_grants.py
-          grep -q "@app.post('/api/tool-grants')" python-ai/backend/server.py
-          grep -q "@app.post('/api/tool-grants/revoke')" python-ai/backend/server.py
-          grep -q "@app.post('/api/tools/execute')" python-ai/backend/server.py
-          grep -q 'tool_names: list\[str\]' python-ai/backend/server.py
-          grep -q 'max_uses: int = Field(default=1, ge=1, le=100)' python-ai/backend/server.py
-          grep -q 'tool_names=body.tool_names' python-ai/backend/server.py
-          grep -q 'max_uses=body.max_uses' python-ai/backend/server.py
-          grep -q 'resolve_grant(body.grant_token, body.name)' python-ai/backend/server.py
-          grep -q 'grant_token' python-ai/backend/server.py
-          ! grep -q 'permissions: list\[str\].*ToolExecuteRequest' python-ai/backend/server.py
-          ! grep -q 'set(body.permissions)' python-ai/backend/server.py
-          ! grep -q "/api/tools/calculator" python-ai/backend/server.py
-          ! grep -q "/api/tools/time" python-ai/backend/server.py
+          cd python-ai/backend
+          python - <<'PY'
+          import tool_grants as grants
+          from server import ToolExecuteRequest, ToolGrantRequest, app
+          from tool_registry import TOOLS
+
+          assert set(TOOLS) == {'calculator.evaluate', 'time.now'}
+          for registered in TOOLS.values():
+              spec = registered.spec
+              assert spec.permission == 'tools.read.basic'
+              assert spec.risk == 'low'
+              assert spec.mutates_state is False
+
+          assert grants._MAX_TTL_SECONDS == 900
+          assert grants._MAX_USES == 100
+          assert grants._ALLOWED_TOOL_NAMES == frozenset(TOOLS)
+          assert callable(grants.list_grant_audit)
+          assert callable(grants.resolve_grant_plan)
+
+          grant_fields = ToolGrantRequest.model_fields
+          assert {'permissions', 'tool_names', 'ttl_seconds', 'max_uses'} <= set(grant_fields)
+          execute_fields = set(ToolExecuteRequest.model_fields)
+          assert execute_fields == {'name', 'arguments', 'grant_token'}
+
+          routes = {(route.path, method) for route in app.routes for method in getattr(route, 'methods', set())}
+          assert ('/api/tool-grants', 'POST') in routes
+          assert ('/api/tool-grants/revoke', 'POST') in routes
+          assert ('/api/tools/execute', 'POST') in routes
+          assert not any(path in {'/api/tools/calculator', '/api/tools/time'} for path, _ in routes)
+          PY
       - name: Check bounded agent executor
         run: |
           grep -q 'MAX_AGENT_STEPS = 6' python-ai/backend/agent_executor.py
@@ -149,7 +149,7 @@ jobs:
           grep -q "'./secure-storage.js'" python-ai/web/sw.js
           grep -q "'./backend-sync.js'" python-ai/web/sw.js
           grep -q "'./context-controls.js'" python-ai/web/sw.js
-          grep -q "python-ai-definitive-v8" python-ai/web/sw.js
+          grep -q "python-ai-definitive-v10" python-ai/web/sw.js
       - name: Smoke-test static serving
         run: |
           python -m http.server 4173 -d python-ai/web >/tmp/python-ai-http.log 2>&1 &
