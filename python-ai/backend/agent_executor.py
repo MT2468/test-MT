@@ -66,6 +66,15 @@ def _preflight_plan(steps: list[dict[str, Any]], max_steps: int) -> list[tuple[s
     return prepared
 
 
+def _elapsed_seconds(started: float) -> float:
+    return time.monotonic() - started
+
+
+def _assert_runtime_remaining(started: float, max_runtime_seconds: float) -> None:
+    if _elapsed_seconds(started) > max_runtime_seconds:
+        raise AgentTimeoutError('Tempo máximo do agente excedido')
+
+
 def run_agent_plan(
     steps: list[dict[str, Any]],
     grant_token: str,
@@ -88,12 +97,14 @@ def run_agent_plan(
     started = time.monotonic()
     results: list[dict[str, Any]] = []
     for index, (name, arguments) in enumerate(prepared_steps):
-        if time.monotonic() - started > max_runtime_seconds:
-            raise AgentTimeoutError('Tempo máximo do agente excedido')
+        _assert_runtime_remaining(started, max_runtime_seconds)
         output = execute_tool(name, arguments, granted)
+        # Também verifica depois da ferramenta. Antes, um único último passo lento podia
+        # ultrapassar o orçamento e ainda ser reportado como sucesso.
+        _assert_runtime_remaining(started, max_runtime_seconds)
         results.append({'step': index + 1, **output})
 
-    elapsed = time.monotonic() - started
+    elapsed = _elapsed_seconds(started)
     return {
         'ok': True,
         'steps_executed': len(results),
