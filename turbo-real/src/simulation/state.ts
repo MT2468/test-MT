@@ -1,5 +1,11 @@
 import type { VehicleState } from './vehicle';
 
+export interface SpawnPose {
+  readonly x: number;
+  readonly z: number;
+  readonly heading: number;
+}
+
 export interface GameState {
   phase: 'driving';
   balance: number;
@@ -9,7 +15,9 @@ export interface GameState {
   vehicle: VehicleState;
 }
 
-export function createInitialGameState(): GameState {
+const DEFAULT_SPAWN: SpawnPose = Object.freeze({ x: 0, z: 18, heading: 0 });
+
+export function createInitialGameState(spawn: SpawnPose = DEFAULT_SPAWN): GameState {
   return {
     phase: 'driving',
     balance: 100,
@@ -17,10 +25,10 @@ export function createInitialGameState(): GameState {
     lap: 0,
     position: 1,
     vehicle: {
-      x: 0,
+      x: spawn.x,
       y: 0,
-      z: 18,
-      heading: 0,
+      z: spawn.z,
+      heading: spawn.heading,
       speed: 0,
       lateralSpeed: 0,
       steering: 0,
