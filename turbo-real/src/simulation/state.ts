@@ -18,11 +18,17 @@ export function createInitialGameState(): GameState {
     position: 1,
     vehicle: {
       x: 0,
+      y: 0,
       z: 18,
       heading: 0,
       speed: 0,
+      lateralSpeed: 0,
       steering: 0,
       distanceTravelled: 0,
+      drifting: false,
+      driftCharge: 0,
+      boostRemaining: 0,
+      impactStrength: 0,
     },
   };
 }

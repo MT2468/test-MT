@@ -45,7 +45,8 @@ canvas {
 .status-chip,
 .wallet-chip,
 .controls-chip,
-.speed-chip {
+.speed-chip,
+.drift-chip {
   width: fit-content;
   max-width: min(440px, calc(100vw - 28px));
   border: 1px solid rgba(255, 255, 255, 0.15);
@@ -144,6 +145,64 @@ canvas {
   padding-inline: 16px;
 }
 
+.drift-chip {
+  grid-column: 2;
+  grid-row: 3;
+  align-self: end;
+  justify-self: center;
+  width: 210px;
+  margin-bottom: 61px;
+  padding: 9px 12px 11px;
+  border-radius: 14px;
+  transition: border-color 120ms ease, box-shadow 120ms ease;
+}
+
+.drift-chip__heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 7px;
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
+}
+
+.drift-chip__heading span {
+  color: rgba(239, 255, 244, 0.7);
+  font-variant-numeric: tabular-nums;
+}
+
+.drift-chip__track {
+  height: 6px;
+  overflow: hidden;
+  border-radius: 99px;
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.drift-chip__track span {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  background: #f7c948;
+  transform: scaleX(0);
+  transform-origin: left center;
+  transition: transform 80ms linear, background 120ms ease;
+}
+
+.drift-chip.is-drifting {
+  border-color: rgba(255, 188, 58, 0.58);
+  box-shadow: 0 16px 42px rgba(255, 126, 24, 0.15);
+}
+
+.drift-chip.is-boosting {
+  border-color: rgba(78, 255, 167, 0.64);
+  box-shadow: 0 16px 42px rgba(44, 255, 145, 0.18);
+}
+
+.drift-chip.is-boosting .drift-chip__track span {
+  background: #55f0a4;
+}
+
 .speed-chip {
   grid-column: 3;
   grid-row: 3;
@@ -153,6 +212,12 @@ canvas {
   padding: 10px 14px 9px;
   border-radius: 18px;
   text-align: right;
+  transition: transform 90ms ease, border-color 90ms ease;
+}
+
+.speed-chip.is-impact {
+  transform: translateX(-4px);
+  border-color: rgba(255, 125, 75, 0.7);
 }
 
 .speed-chip div {
@@ -221,6 +286,13 @@ canvas {
     grid-row: 4;
   }
 
+  .drift-chip {
+    grid-column: 1 / -1;
+    grid-row: 3;
+    align-self: end;
+    margin-bottom: 4px;
+  }
+
   .controls-chip {
     display: none;
   }
@@ -234,10 +306,20 @@ canvas {
   .wallet-chip {
     flex-direction: column;
   }
+
+  .drift-chip {
+    width: min(190px, 56vw);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .status-chip__dot {
     animation: none;
+  }
+
+  .drift-chip,
+  .drift-chip__track span,
+  .speed-chip {
+    transition: none;
   }
 }
