@@ -26,8 +26,8 @@ export function createHud(host: HTMLElement, initialState: GameState): HudContro
     <section class="status-chip">
       <span class="status-chip__dot" aria-hidden="true"></span>
       <div>
-        <strong>Fase 1 · Direção arcade</strong>
-        <span>Kart dirigível + câmera de perseguição</span>
+        <strong>Fase 2 · Física arcade</strong>
+        <span>Rapier + colisões + drift</span>
       </div>
     </section>
 
@@ -37,8 +37,16 @@ export function createHud(host: HTMLElement, initialState: GameState): HudContro
     </section>
 
     <section class="controls-chip" aria-label="Controles">
-      <strong>WASD / SETAS</strong>
-      <span>acelerar · frear/ré · esterçar</span>
+      <strong>WASD / SETAS + SHIFT</strong>
+      <span>dirigir · segure Shift na curva para drift</span>
+    </section>
+
+    <section class="drift-chip" aria-label="Carga de drift">
+      <div class="drift-chip__heading">
+        <strong data-drift-label>DRIFT</strong>
+        <span data-drift-value>0%</span>
+      </div>
+      <div class="drift-chip__track"><span data-drift-fill></span></div>
     </section>
 
     <section class="speed-chip" aria-label="Velocidade do kart">
@@ -50,13 +58,38 @@ export function createHud(host: HTMLElement, initialState: GameState): HudContro
 
   const speed = hud.querySelector<HTMLElement>('[data-speed]');
   const direction = hud.querySelector<HTMLElement>('[data-direction]');
-  if (!speed || !direction) throw new Error('HUD da Fase 1 incompleto.');
+  const driftLabel = hud.querySelector<HTMLElement>('[data-drift-label]');
+  const driftValue = hud.querySelector<HTMLElement>('[data-drift-value]');
+  const driftFill = hud.querySelector<HTMLElement>('[data-drift-fill]');
+  const driftChip = hud.querySelector<HTMLElement>('.drift-chip');
+  const speedChip = hud.querySelector<HTMLElement>('.speed-chip');
+  if (!speed || !direction || !driftLabel || !driftValue || !driftFill || !driftChip || !speedChip) {
+    throw new Error('HUD da Fase 2 incompleto.');
+  }
 
   const controller: HudController = {
     update(state): void {
-      speed.textContent = String(Math.round(Math.abs(state.vehicle.speed) * 3.6));
-      const gear = state.vehicle.speed < -0.1 ? 'R' : 'D';
-      direction.textContent = `${gear} · ${Math.round(state.vehicle.distanceTravelled)} m`;
+      const { vehicle } = state;
+      speed.textContent = String(Math.round(Math.abs(vehicle.speed) * 3.6));
+      const gear = vehicle.speed < -0.1 ? 'R' : 'D';
+      direction.textContent = `${gear} · ${Math.round(vehicle.distanceTravelled)} m`;
+
+      const chargePercent = Math.round(vehicle.driftCharge * 100);
+      driftFill.style.transform = `scaleX(${vehicle.driftCharge})`;
+      driftValue.textContent = `${chargePercent}%`;
+      driftChip.classList.toggle('is-drifting', vehicle.drifting);
+      driftChip.classList.toggle('is-boosting', vehicle.boostRemaining > 0);
+      speedChip.classList.toggle('is-impact', vehicle.impactStrength > 0.28);
+
+      if (vehicle.boostRemaining > 0) {
+        driftLabel.textContent = 'TURBO';
+        driftValue.textContent = `${vehicle.boostRemaining.toFixed(1)}s`;
+        driftFill.style.transform = `scaleX(${Math.min(vehicle.boostRemaining / 1.2, 1)})`;
+      } else if (vehicle.drifting) {
+        driftLabel.textContent = 'CARREGANDO';
+      } else {
+        driftLabel.textContent = 'DRIFT';
+      }
     },
     dispose(): void {
       hud.remove();

@@ -23,6 +23,7 @@ export class KeyboardInput {
     return {
       throttle: accelerating === braking ? 0 : accelerating ? 1 : -1,
       steer: steeringLeft === steeringRight ? 0 : steeringLeft ? -1 : 1,
+      drift: this.pressed.has('drift'),
     };
   }
 

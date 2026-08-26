@@ -17,6 +17,7 @@ export const keyboardBindings: Readonly<Record<string, GameAction>> = Object.fre
   KeyD: 'steer-right',
   ArrowRight: 'steer-right',
   ShiftLeft: 'drift',
+  ShiftRight: 'drift',
   Space: 'use-item',
   Escape: 'pause',
 });

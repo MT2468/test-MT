@@ -2,25 +2,31 @@
 
 Kart racer arcade 3D original sobre educação financeira no Brasil. O projeto se inspira no ritmo e na acessibilidade dos kart racers, sem copiar personagens, pistas, assets ou identidade visual de franquias existentes.
 
-## Fase 1 — Kart dirigível + câmera de perseguição
+## Fase 2 - Drift, colisões e física arcade
 
-A Fase 1 transforma o boot técnico da Fase 0 em um protótipo realmente controlável.
+A Fase 2 substitui o movimento puramente cinemático da etapa anterior por um corpo rígido controlado pelo Rapier, mantendo as regras de jogo separadas do Three.js.
 
 ### Entregue
 
-- movimento arcade serializável fora do Three.js;
-- aceleração progressiva até aproximadamente 79 km/h;
-- frenagem antes de engatar ré;
-- ré limitada e esterço invertido corretamente durante marcha à ré;
-- desaceleração natural quando nenhum acelerador é pressionado;
-- resposta de direção suavizada e dependente da velocidade;
-- teclado com limpeza de estado ao perder foco da janela;
-- câmera de perseguição suavizada e independente da taxa de quadros;
-- leve aumento de FOV em alta velocidade;
-- rodas dianteiras acompanhando visualmente o esterço;
-- pista de prática de 300 unidades com referências de profundidade;
-- HUD em DOM com velocidade, marcha e distância percorrida;
-- suporte responsivo e `prefers-reduced-motion` preservado.
+- `@dimforge/rapier3d-compat` como motor de física 3D;
+- simulação em timestep fixo de 60 Hz;
+- corpo rígido dinâmico para o kart com CCD habilitado;
+- rotações X/Z bloqueadas para estabilidade arcade, preservando rotação em Y;
+- gravidade, contato com o solo e colisões físicas;
+- barreiras laterais e de fim de pista;
+- dois obstáculos físicos para teste de impacto;
+- aceleração, frenagem, ré e resistência refinadas;
+- aderência lateral independente da velocidade longitudinal;
+- drift com `Shift` durante curvas acima da velocidade mínima;
+- perda controlada de aderência durante drift;
+- carga de drift convertida em mini-boost ao soltar `Shift`;
+- velocidade máxima maior durante boost;
+- feedback de impacto no HUD e câmera;
+- rodas girando, inclinação visual, faíscas de drift e chamas de boost;
+- câmera de perseguição adaptada a derrapagem e turbo;
+- HUD com barra de carga de drift e duração do boost;
+- fallback visível caso a inicialização do WebAssembly falhe;
+- workflow de CI dedicado a `turbo-real/` com typecheck e build.
 
 ## Controles
 
@@ -30,8 +36,9 @@ A Fase 1 transforma o boot técnico da Fase 0 em um protótipo realmente control
 | Frear / Ré | `S` ou `↓` |
 | Virar à esquerda | `A` ou `←` |
 | Virar à direita | `D` ou `→` |
+| Drift | `Shift` esquerdo ou direito + curva |
 
-`Shift`, `Espaço` e `Esc` continuam reservados no mapa de ações para drift, item e pausa, mas essas funções ainda não são executadas nesta fase.
+Para carregar turbo, entre numa curva com velocidade suficiente, segure `Shift` enquanto esterça e solte depois de acumular carga. Cargas maiores geram boosts mais longos.
 
 ## Executar
 
@@ -42,7 +49,7 @@ npm install
 npm run dev
 ```
 
-Validação de tipos e build:
+Validação:
 
 ```bash
 npm run typecheck
@@ -54,26 +61,41 @@ npm run build
 ```text
 src/
 ├── input/
-│   ├── actions.ts              # ações abstratas e bindings
-│   └── KeyboardInput.ts        # estado físico do teclado
+│   ├── actions.ts
+│   └── KeyboardInput.ts
+├── physics/
+│   └── KartPhysics.ts          # Rapier, timestep, corpo rígido e colisores
 ├── render/
-│   ├── app/GameApp.ts          # loop, cena e sincronização visual
-│   ├── camera/ChaseCamera.ts   # comportamento da câmera
-│   └── objects/createKart.ts   # representação visual do kart
+│   ├── app/GameApp.ts          # cena e sincronização visual
+│   ├── camera/ChaseCamera.ts
+│   └── objects/createKart.ts
 ├── simulation/
-│   ├── state.ts                # estado serializável do jogo
-│   └── vehicle.ts              # cinemática arcade do veículo
-└── ui/createHud.ts             # HUD DOM orientado pelo estado
+│   ├── state.ts                # estado serializável
+│   └── vehicle.ts              # tipos e tuning arcade
+└── ui/createHud.ts
 ```
 
-A simulação continua sendo a fonte de verdade. Three.js recebe posição, direção, velocidade e esterço e apenas representa esses valores visualmente.
+O Rapier pertence à camada de física, não ao renderer. Three.js continua apenas representando visualmente o estado produzido pela simulação física.
 
-## Limite intencional da Fase 1
+## Modelo de direção
 
-Ainda não existem física com Rapier, colisões, aderência de pneus, drift, boost, checkpoints, voltas, IA, itens ou economia interativa. O kart pode sair da pista porque limites físicos pertencem à próxima etapa.
+O projeto usa um modelo híbrido de kart arcade:
+
+1. Rapier resolve gravidade, integração, contato, obstáculos e paredes.
+2. O controlador de veículo decompõe a velocidade em componentes longitudinal e lateral.
+3. A aceleração atua no eixo longitudinal do kart.
+4. A aderência reduz a velocidade lateral normalmente.
+5. Durante drift essa aderência cai, mantendo o vetor de movimento deslizando enquanto o corpo gira.
+6. Ao terminar um drift válido, a carga acumulada vira um boost temporário.
+
+Isso evita tanto um kart preso a trilhos quanto um veículo excessivamente realista e pouco divertido.
+
+## Limite intencional da Fase 2
+
+Ainda não existem pista de corrida final, checkpoints, contagem de voltas, colocação real, IA, itens, economia interativa, áudio ou multiplayer. A reta atual continua sendo uma pista de engenharia para validar dirigibilidade e colisões.
 
 ## Próxima fase
 
-**Fase 2: drift, aceleração refinada, colisões e física de veículo.**
+**Fase 3: primeira pista completa.**
 
-O objetivo será substituir as limitações cinemáticas necessárias deste protótipo por um sistema físico arcade consistente, sem mover as regras de jogo para dentro do renderer.
+O próximo objetivo é substituir a reta de testes por um circuito fechado original, com curvas projetadas para drift, leitura de trajetória e futuras decisões financeiras.

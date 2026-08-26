@@ -1,13 +1,13 @@
 import * as THREE from 'three';
 import { KeyboardInput } from '../../input/KeyboardInput';
+import { KartPhysics } from '../../physics/KartPhysics';
 import type { GameState } from '../../simulation/state';
-import { updateVehicle } from '../../simulation/vehicle';
 import { ChaseCamera } from '../camera/ChaseCamera';
 import { createKart } from '../objects/createKart';
 
 export class GameApp {
   private readonly scene = new THREE.Scene();
-  private readonly camera = new THREE.PerspectiveCamera(56, 1, 0.1, 320);
+  private readonly camera = new THREE.PerspectiveCamera(56, 1, 0.1, 340);
   private readonly renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
   private readonly kart = createKart();
   private readonly input = new KeyboardInput();
@@ -18,10 +18,11 @@ export class GameApp {
   constructor(
     private readonly container: HTMLElement,
     private readonly state: GameState,
+    private readonly physics: KartPhysics,
     private readonly onStateUpdate: (state: GameState) => void = () => {},
   ) {
     this.scene.background = new THREE.Color(0x8fd8ff);
-    this.scene.fog = new THREE.Fog(0x8fd8ff, 65, 190);
+    this.scene.fog = new THREE.Fog(0x8fd8ff, 70, 210);
 
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -49,6 +50,7 @@ export class GameApp {
   dispose(): void {
     this.renderer.setAnimationLoop(null);
     this.input.dispose();
+    this.physics.dispose();
     this.resizeObserver.disconnect();
     this.scene.traverse((object) => {
       if (!(object instanceof THREE.Mesh)) return;
@@ -68,15 +70,15 @@ export class GameApp {
     sun.castShadow = true;
     sun.shadow.mapSize.set(1024, 1024);
     sun.shadow.camera.near = 1;
-    sun.shadow.camera.far = 85;
-    sun.shadow.camera.left = -34;
-    sun.shadow.camera.right = 34;
-    sun.shadow.camera.top = 34;
-    sun.shadow.camera.bottom = -34;
+    sun.shadow.camera.far = 90;
+    sun.shadow.camera.left = -36;
+    sun.shadow.camera.right = 36;
+    sun.shadow.camera.top = 36;
+    sun.shadow.camera.bottom = -36;
     this.scene.add(sun);
 
     const grass = new THREE.Mesh(
-      new THREE.PlaneGeometry(110, 320),
+      new THREE.PlaneGeometry(110, 330),
       new THREE.MeshStandardMaterial({ color: 0x257b43, roughness: 1 }),
     );
     grass.rotation.x = -Math.PI / 2;
@@ -101,13 +103,13 @@ export class GameApp {
       this.scene.add(stripe);
     }
 
-    const curbMaterial = new THREE.MeshStandardMaterial({ color: 0xf2f3f5, roughness: 0.85 });
-    for (const x of [-9.15, 9.15]) {
-      const curb = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.18, 300), curbMaterial);
-      curb.position.set(x, 0.09, 0);
-      curb.receiveShadow = true;
-      curb.castShadow = true;
-      this.scene.add(curb);
+    const barrierMaterial = new THREE.MeshStandardMaterial({ color: 0xf3f5f7, roughness: 0.78 });
+    for (const x of [-9.35, 9.35]) {
+      const barrier = new THREE.Mesh(new THREE.BoxGeometry(0.56, 1.1, 300), barrierMaterial);
+      barrier.position.set(x, 0.55, 0);
+      barrier.receiveShadow = true;
+      barrier.castShadow = true;
+      this.scene.add(barrier);
     }
 
     const startLine = new THREE.Mesh(
@@ -120,6 +122,8 @@ export class GameApp {
 
     this.addPracticeGate(-85);
     this.addPracticeGate(85);
+    this.addCollisionBlock(-3.4, -36);
+    this.addCollisionBlock(3.4, -58);
     this.scene.add(this.kart.group);
   }
 
@@ -140,25 +144,45 @@ export class GameApp {
     this.scene.add(beam);
   }
 
+  private addCollisionBlock(x: number, z: number): void {
+    const block = new THREE.Mesh(
+      new THREE.BoxGeometry(2.5, 1.4, 3.6),
+      new THREE.MeshStandardMaterial({
+        color: 0xff8a2b,
+        emissive: 0x8a2600,
+        emissiveIntensity: 0.28,
+        roughness: 0.62,
+      }),
+    );
+    block.position.set(x, 0.7, z);
+    block.castShadow = true;
+    block.receiveShadow = true;
+    this.scene.add(block);
+  }
+
   private render(time: number): void {
-    const deltaSeconds = Math.min((time - this.previousTime) / 1000, 0.05);
+    const deltaSeconds = Math.min((time - this.previousTime) / 1000, 0.1);
     this.previousTime = time;
 
-    updateVehicle(this.state.vehicle, this.input.readDrivingInput(), deltaSeconds);
-    this.syncKart(time);
+    this.physics.advance(this.input.readDrivingInput(), deltaSeconds, this.state.vehicle);
+    this.syncKart(deltaSeconds);
     this.chaseCamera.update(this.state.vehicle, deltaSeconds);
     this.onStateUpdate(this.state);
     this.renderer.render(this.scene, this.camera);
   }
 
-  private syncKart(time: number): void {
+  private syncKart(deltaSeconds: number): void {
     const { vehicle } = this.state;
-    const speedRatio = Math.min(Math.abs(vehicle.speed) / 22, 1);
-    const suspensionBob = Math.sin(time * 0.018) * 0.018 * speedRatio;
-
-    this.kart.group.position.set(vehicle.x, suspensionBob, vehicle.z);
+    this.kart.group.position.set(vehicle.x, vehicle.y, vehicle.z);
     this.kart.group.rotation.y = vehicle.heading;
-    this.kart.setSteering(vehicle.steering);
+    this.kart.updateMotion({
+      speed: vehicle.speed,
+      steering: vehicle.steering,
+      drifting: vehicle.drifting,
+      lateralSpeed: vehicle.lateralSpeed,
+      boostRemaining: vehicle.boostRemaining,
+      deltaSeconds,
+    });
   }
 
   private resize(): void {
