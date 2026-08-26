@@ -2,9 +2,11 @@ import './styles.css';
 import './race.css';
 import './items.css';
 import './finance.css';
+import './decisions.css';
 import { KartPhysics } from './physics/KartPhysics';
 import { GameApp } from './render/app/GameApp';
 import { AIFleetController } from './simulation/AIController';
+import { DecisionController } from './simulation/decisions/DecisionController';
 import { FinanceController } from './simulation/finance/FinanceController';
 import { ItemController } from './simulation/items/ItemController';
 import { RaceController } from './simulation/RaceController';
@@ -21,6 +23,7 @@ async function bootstrap(root: HTMLElement): Promise<void> {
   const ai = new AIFleetController(track, state.rivals);
   const items = new ItemController(track, state);
   const finance = new FinanceController(state.finance, state.race);
+  const decisions = new DecisionController(state.decisions);
   const game = new GameApp(
     root,
     state,
@@ -29,6 +32,7 @@ async function bootstrap(root: HTMLElement): Promise<void> {
     ai,
     items,
     finance,
+    decisions,
     track,
     (nextState) => hud.update(nextState),
   );

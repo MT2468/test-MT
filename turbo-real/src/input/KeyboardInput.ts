@@ -1,4 +1,5 @@
 import { keyboardBindings, type GameAction } from './actions';
+import type { DecisionChoice } from '../simulation/decisions/types';
 import type { FinanceInputAction } from '../simulation/finance/FinanceController';
 import type { DrivingInput } from '../simulation/vehicle';
 
@@ -43,6 +44,18 @@ export class KeyboardInput {
     if (this.triggered.has('withdraw-reserve')) {
       this.triggered.delete('withdraw-reserve');
       return 'withdraw';
+    }
+    return null;
+  }
+
+  consumeDecisionChoice(): DecisionChoice | null {
+    if (this.triggered.has('decision-1')) {
+      this.triggered.delete('decision-1');
+      return 1;
+    }
+    if (this.triggered.has('decision-2')) {
+      this.triggered.delete('decision-2');
+      return 2;
     }
     return null;
   }

@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { KeyboardInput } from '../../input/KeyboardInput';
 import { KartPhysics } from '../../physics/KartPhysics';
 import { AIFleetController } from '../../simulation/AIController';
+import { DecisionController } from '../../simulation/decisions/DecisionController';
 import { FinanceController } from '../../simulation/finance/FinanceController';
 import { ItemController } from '../../simulation/items/ItemController';
 import type { RacerItemState } from '../../simulation/items/types';
@@ -35,6 +36,7 @@ export class GameApp {
     private readonly ai: AIFleetController,
     private readonly items: ItemController,
     private readonly finance: FinanceController,
+    private readonly decisions: DecisionController,
     track: TrackDefinition,
     private readonly onStateUpdate: (state: GameState) => void = () => {},
   ) {
@@ -119,6 +121,18 @@ export class GameApp {
     const deltaSeconds = Math.min((time - this.previousTime) / 1000, 0.1);
     this.previousTime = time;
 
+    const decisionChoice = this.input.consumeDecisionChoice();
+    if (this.state.decisions.active !== null) {
+      if (decisionChoice !== null) {
+        this.decisions.resolve(decisionChoice, this.finance, this.state.vehicle, this.state.race);
+        this.state.phase = this.state.race.finished ? 'finished' : 'racing';
+      }
+      this.itemScene.update(time / 1000, this.state.itemWorld);
+      this.onStateUpdate(this.state);
+      this.renderer.render(this.scene, this.camera);
+      return;
+    }
+
     const rivalInputs = this.ai.readInputs(this.state.vehicle);
     this.physics.advance(
       this.input.readDrivingInput(),
@@ -132,7 +146,11 @@ export class GameApp {
     this.ai.advanceRace(deltaSeconds, this.state.race);
     this.items.advance(deltaSeconds, this.input.consumeUseItem(), this.physics);
     this.finance.advance(deltaSeconds, this.input.consumeFinanceAction(), this.state.race);
-    if (this.state.race.finished) this.state.phase = 'finished';
+    this.decisions.advance(deltaSeconds, this.state.race);
+
+    if (this.state.decisions.active !== null) this.state.phase = 'decision';
+    else if (this.state.race.finished) this.state.phase = 'finished';
+    else this.state.phase = 'racing';
 
     this.itemScene.update(time / 1000, this.state.itemWorld);
     this.syncKartVisual(this.kart, this.state.vehicle, this.state.items, deltaSeconds);

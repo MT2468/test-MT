@@ -1,0 +1,138 @@
+.decision-card {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  z-index: 20;
+  width: min(620px, calc(100vw - 32px));
+  transform: translate(-50%, -50%);
+  padding: 20px;
+  border: 1px solid rgba(247, 201, 72, 0.5);
+  border-radius: 24px;
+  background: rgba(5, 20, 12, 0.95);
+  box-shadow: 0 34px 120px rgba(0, 0, 0, 0.5), 0 0 48px rgba(247, 201, 72, 0.1);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  pointer-events: none;
+}
+
+.decision-card__kicker {
+  color: #f7c948;
+  font-size: 0.68rem;
+  font-weight: 900;
+  letter-spacing: 0.14em;
+}
+
+.decision-card h2 {
+  margin: 5px 0 7px;
+  font-size: clamp(1.65rem, 5vw, 2.6rem);
+  line-height: 1;
+  letter-spacing: -0.04em;
+}
+
+.decision-card > p {
+  margin: 0;
+  max-width: 58ch;
+  color: rgba(239, 255, 244, 0.76);
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+.decision-card__options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.decision-option {
+  min-height: 112px;
+  padding: 13px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.045);
+}
+
+.decision-option[data-accent="safe"] {
+  border-color: rgba(85, 240, 164, 0.42);
+}
+
+.decision-option[data-accent="risk"] {
+  border-color: rgba(247, 201, 72, 0.46);
+}
+
+.decision-option__key {
+  display: inline-grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  margin-bottom: 8px;
+  border-radius: 8px;
+  background: #f7c948;
+  color: #092717;
+  font-size: 0.75rem;
+  font-weight: 950;
+}
+
+.decision-option strong,
+.decision-option span {
+  display: block;
+}
+
+.decision-option strong {
+  font-size: 0.88rem;
+}
+
+.decision-option span {
+  margin-top: 4px;
+  color: rgba(239, 255, 244, 0.66);
+  font-size: 0.7rem;
+  line-height: 1.35;
+}
+
+.decision-card__hint {
+  display: block;
+  margin-top: 12px;
+  color: rgba(239, 255, 244, 0.52);
+  font-size: 0.66rem;
+  text-align: center;
+}
+
+.decision-outcome {
+  position: fixed;
+  left: 50%;
+  top: 24%;
+  z-index: 14;
+  transform: translateX(-50%);
+  max-width: min(520px, calc(100vw - 32px));
+  padding: 9px 13px;
+  border: 1px solid rgba(247, 201, 72, 0.34);
+  border-radius: 14px;
+  background: rgba(6, 27, 15, 0.9);
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.24);
+  color: #f5fff7;
+  font-size: 0.72rem;
+  font-weight: 750;
+  line-height: 1.35;
+  text-align: center;
+}
+
+@media (max-width: 620px) {
+  .decision-card {
+    padding: 16px;
+  }
+
+  .decision-card__options {
+    grid-template-columns: 1fr;
+  }
+
+  .decision-option {
+    min-height: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .decision-card,
+  .decision-outcome {
+    transition: none;
+  }
+}
