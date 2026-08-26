@@ -4,13 +4,14 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#07120c" />
-    <meta name="description" content="Launcher de teste do Turbo Real até a Fase 8." />
-    <title>Turbo Real | Teste Fase 8</title>
+    <meta name="description" content="Launcher de teste do Turbo Real até a Fase 9." />
+    <title>Turbo Real | Teste Fase 9</title>
     <link rel="stylesheet" href="../turbo-real/src/styles.css" />
     <link rel="stylesheet" href="../turbo-real/src/race.css" />
     <link rel="stylesheet" href="../turbo-real/src/items.css" />
     <link rel="stylesheet" href="../turbo-real/src/finance.css" />
     <link rel="stylesheet" href="../turbo-real/src/decisions.css" />
+    <link rel="stylesheet" href="../turbo-real/src/menus.css" />
     <style>
       .test-loader {
         position: fixed;
@@ -36,7 +37,7 @@
     <div class="test-loader" id="test-loader" role="status" aria-live="polite">
       <div>
         <strong>TURBO REAL</strong>
-        Preparando a build de teste da Fase 8…
+        Preparando a build de teste da Fase 9…
         <small>Na primeira abertura o navegador compila os módulos TypeScript do jogo.</small>
       </div>
     </div>
@@ -127,7 +128,7 @@
       try {
         const entryUrl = new URL('main.ts', sourceRoot);
         const entryBlob = await compileModule(entryUrl);
-        setStatus('Iniciando corrida…');
+        setStatus('Abrindo menu…');
         await import(entryBlob);
         loader?.remove();
       } catch (error) {
