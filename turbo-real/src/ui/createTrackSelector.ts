@@ -22,7 +22,7 @@ export function createTrackSelector(
     throw new Error('Superfície de seleção de pistas indisponível.');
   }
 
-  if (kicker) kicker.textContent = 'FASE 12 · COPA PRIMEIRO SALÁRIO';
+  if (kicker) kicker.textContent = 'MOBILE EDITION · COPA PRIMEIRO SALÁRIO';
 
   const selector = document.createElement('section');
   selector.className = 'track-selector';
