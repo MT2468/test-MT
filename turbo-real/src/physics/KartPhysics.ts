@@ -1,5 +1,6 @@
 import RAPIER from '@dimforge/rapier3d-compat';
 import { moveTowards, VEHICLE_TUNING, type DrivingInput, type VehicleState } from '../simulation/vehicle';
+import type { TrackDefinition } from '../track/firstTrack';
 
 type RapierWorld = InstanceType<typeof RAPIER.World>;
 type RapierRigidBody = ReturnType<RapierWorld['createRigidBody']>;
@@ -36,7 +37,7 @@ export class KartPhysics {
     private readonly spawn: Readonly<{ x: number; z: number; heading: number }>,
   ) {}
 
-  static async create(initialState: VehicleState): Promise<KartPhysics> {
+  static async create(initialState: VehicleState, track: TrackDefinition): Promise<KartPhysics> {
     await ensureRapierReady();
 
     const world = new RAPIER.World({ x: 0, y: -16, z: 0 });
@@ -63,7 +64,7 @@ export class KartPhysics {
       z: initialState.z,
       heading: initialState.heading,
     });
-    physics.createPracticeTrackColliders();
+    physics.createTrackColliders(track);
     return physics;
   }
 
@@ -77,9 +78,7 @@ export class KartPhysics {
       steps += 1;
     }
 
-    if (steps === MAX_STEPS_PER_FRAME && this.accumulator > FIXED_TIMESTEP) {
-      this.accumulator = 0;
-    }
+    if (steps === MAX_STEPS_PER_FRAME && this.accumulator > FIXED_TIMESTEP) this.accumulator = 0;
   }
 
   dispose(): void {
@@ -166,9 +165,7 @@ export class KartPhysics {
     state.boostRemaining = Math.max(0, state.boostRemaining - dt);
 
     const wantsDrift =
-      input.drift &&
-      Math.abs(input.steer) > 0 &&
-      forwardSpeed > VEHICLE_TUNING.minimumDriftSpeed;
+      input.drift && Math.abs(input.steer) > 0 && forwardSpeed > VEHICLE_TUNING.minimumDriftSpeed;
 
     if (wantsDrift) {
       state.drifting = true;
@@ -227,31 +224,44 @@ export class KartPhysics {
     state.boostRemaining = 0;
   }
 
-  private createPracticeTrackColliders(): void {
-    this.addFixedBox(0, -0.12, 0, 55, 0.12, 160, 0.9, 0);
-    this.addFixedBox(-9.35, 0.85, 0, 0.28, 0.85, 150, 0.28, 0.08);
-    this.addFixedBox(9.35, 0.85, 0, 0.28, 0.85, 150, 0.28, 0.08);
-    this.addFixedBox(0, 0.85, -150.35, 9.6, 0.85, 0.28, 0.28, 0.08);
-    this.addFixedBox(0, 0.85, 150.35, 9.6, 0.85, 0.28, 0.28, 0.08);
+  private createTrackColliders(track: TrackDefinition): void {
+    const staticBody = this.world.createRigidBody(RAPIER.RigidBodyDesc.fixed());
+    const centerX = (track.bounds.minX + track.bounds.maxX) * 0.5;
+    const centerZ = (track.bounds.minZ + track.bounds.maxZ) * 0.5;
+    const halfX = (track.bounds.maxX - track.bounds.minX) * 0.5 + 35;
+    const halfZ = (track.bounds.maxZ - track.bounds.minZ) * 0.5 + 35;
 
-    this.addFixedBox(-3.4, 0.7, -36, 1.25, 0.7, 1.8, 0.42, 0.18);
-    this.addFixedBox(3.4, 0.7, -58, 1.25, 0.7, 1.8, 0.42, 0.18);
+    const ground = RAPIER.ColliderDesc.cuboid(halfX, 0.12, halfZ)
+      .setTranslation(centerX, -0.12, centerZ)
+      .setFriction(0.9)
+      .setRestitution(0);
+    this.world.createCollider(ground, staticBody);
+
+    for (let index = 0; index < track.samples.length; index += 1) {
+      const next = (index + 1) % track.samples.length;
+      const a = track.samples[index];
+      const b = track.samples[next];
+      this.addBarrierCollider(staticBody, a.leftBarrierX, a.leftBarrierZ, b.leftBarrierX, b.leftBarrierZ);
+      this.addBarrierCollider(staticBody, a.rightBarrierX, a.rightBarrierZ, b.rightBarrierX, b.rightBarrierZ);
+    }
   }
 
-  private addFixedBox(
-    x: number,
-    y: number,
-    z: number,
-    halfX: number,
-    halfY: number,
-    halfZ: number,
-    friction: number,
-    restitution: number,
+  private addBarrierCollider(
+    staticBody: RapierRigidBody,
+    ax: number,
+    az: number,
+    bx: number,
+    bz: number,
   ): void {
-    const fixedBody = this.world.createRigidBody(RAPIER.RigidBodyDesc.fixed().setTranslation(x, y, z));
-    const collider = RAPIER.ColliderDesc.cuboid(halfX, halfY, halfZ)
-      .setFriction(friction)
-      .setRestitution(restitution);
-    this.world.createCollider(collider, fixedBody);
+    const dx = bx - ax;
+    const dz = bz - az;
+    const length = Math.hypot(dx, dz);
+    const yaw = Math.atan2(dx, dz);
+    const collider = RAPIER.ColliderDesc.cuboid(0.34, 0.72, length * 0.5 + 0.08)
+      .setTranslation((ax + bx) * 0.5, 0.72, (az + bz) * 0.5)
+      .setRotation(yawQuaternion(yaw))
+      .setFriction(0.28)
+      .setRestitution(0.08);
+    this.world.createCollider(collider, staticBody);
   }
 }
