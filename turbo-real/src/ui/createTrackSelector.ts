@@ -83,10 +83,10 @@ export function createTrackSelector(
       button.classList.toggle('is-selected', selected);
       button.setAttribute('aria-pressed', selected ? 'true' : 'false');
     }
-    trackName.textContent = track.name;
-    trackSubtitle.textContent = `${track.subtitle} · ${track.content.financialHook}`;
-    trackLaps.textContent = String(track.race.totalLaps);
-    raceCard.dataset.theme = track.visuals.theme;
+    trackName!.textContent = track.name;
+    trackSubtitle!.textContent = `${track.subtitle} · ${track.content.financialHook}`;
+    trackLaps!.textContent = String(track.race.totalLaps);
+    raceCard!.dataset.theme = track.visuals.theme;
     onSelect(track);
   }
 
