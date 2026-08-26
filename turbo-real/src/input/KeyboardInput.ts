@@ -7,6 +7,7 @@ function isEditableTarget(target: EventTarget | null): boolean {
 
 export class KeyboardInput {
   private readonly pressed = new Set<GameAction>();
+  private readonly triggered = new Set<GameAction>();
 
   constructor() {
     window.addEventListener('keydown', this.onKeyDown, { passive: false });
@@ -27,11 +28,18 @@ export class KeyboardInput {
     };
   }
 
+  consumeUseItem(): boolean {
+    if (!this.triggered.has('use-item')) return false;
+    this.triggered.delete('use-item');
+    return true;
+  }
+
   dispose(): void {
     window.removeEventListener('keydown', this.onKeyDown);
     window.removeEventListener('keyup', this.onKeyUp);
     window.removeEventListener('blur', this.onBlur);
     this.pressed.clear();
+    this.triggered.clear();
   }
 
   private readonly onKeyDown = (event: KeyboardEvent): void => {
@@ -39,6 +47,7 @@ export class KeyboardInput {
     const action = keyboardBindings[event.code];
     if (!action) return;
     event.preventDefault();
+    if (!this.pressed.has(action)) this.triggered.add(action);
     this.pressed.add(action);
   };
 
@@ -52,5 +61,6 @@ export class KeyboardInput {
 
   private readonly onBlur = (): void => {
     this.pressed.clear();
+    this.triggered.clear();
   };
 }

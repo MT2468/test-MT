@@ -1,3 +1,4 @@
+import { getItemDefinition } from '../simulation/items/types';
 import type { GameState } from '../simulation/state';
 
 const brl = new Intl.NumberFormat('pt-BR', {
@@ -27,7 +28,7 @@ export function createHud(host: HTMLElement, initialState: GameState): HudContro
       <span class="brand-chip__flag" aria-hidden="true">◆</span>
       <div>
         <strong>TURBO REAL</strong>
-        <span>Avenida do Troco · grid com 8 pilotos</span>
+        <span>Avenida do Troco · itens arcade</span>
       </div>
     </section>
 
@@ -45,8 +46,16 @@ export function createHud(host: HTMLElement, initialState: GameState): HudContro
     </section>
 
     <section class="controls-chip" aria-label="Controles">
-      <strong>WASD / SETAS + SHIFT</strong>
-      <span>dirigir · segure Shift na curva para drift</span>
+      <strong>WASD / SETAS · SHIFT · ESPAÇO</strong>
+      <span>dirigir · drift · usar item</span>
+    </section>
+
+    <section class="item-chip" aria-label="Item atual">
+      <strong data-item-icon>?</strong>
+      <div>
+        <span data-item-name>SEM ITEM</span>
+        <small data-item-hint>passe por uma caixa</small>
+      </div>
     </section>
 
     <section class="drift-chip" aria-label="Carga de drift">
@@ -91,6 +100,10 @@ export function createHud(host: HTMLElement, initialState: GameState): HudContro
   const finishPosition = hud.querySelector<HTMLElement>('[data-finish-position]');
   const finishTime = hud.querySelector<HTMLElement>('[data-finish-time]');
   const bestLap = hud.querySelector<HTMLElement>('[data-best-lap]');
+  const itemChip = hud.querySelector<HTMLElement>('.item-chip');
+  const itemIcon = hud.querySelector<HTMLElement>('[data-item-icon]');
+  const itemName = hud.querySelector<HTMLElement>('[data-item-name]');
+  const itemHint = hud.querySelector<HTMLElement>('[data-item-hint]');
 
   if (
     !speed ||
@@ -107,14 +120,18 @@ export function createHud(host: HTMLElement, initialState: GameState): HudContro
     !finish ||
     !finishPosition ||
     !finishTime ||
-    !bestLap
+    !bestLap ||
+    !itemChip ||
+    !itemIcon ||
+    !itemName ||
+    !itemHint
   ) {
-    throw new Error('HUD da Fase 5 incompleto.');
+    throw new Error('HUD da Fase 6 incompleto.');
   }
 
   const controller: HudController = {
     update(state): void {
-      const { vehicle, race } = state;
+      const { vehicle, race, items } = state;
       speed.textContent = String(Math.round(Math.abs(vehicle.speed) * 3.6));
       const gear = vehicle.speed < -0.1 ? 'R' : 'D';
       direction.textContent = `${gear} · ${Math.round(vehicle.distanceTravelled)} m`;
@@ -125,17 +142,27 @@ export function createHud(host: HTMLElement, initialState: GameState): HudContro
       raceDetail.textContent = `SETOR ${sector}/${race.checkpointCount} · ${formatTime(race.raceTimeSeconds)}`;
       wrongWay.hidden = !race.wrongWay || race.finished;
 
+      const item = getItemDefinition(items.inventory);
+      itemIcon.textContent = item?.icon ?? '?';
+      itemName.textContent = item?.shortName ?? 'SEM ITEM';
+      if (items.shieldRemaining > 0) itemHint.textContent = `escudo · ${items.shieldRemaining.toFixed(1)}s`;
+      else if (items.slowRemaining > 0) itemHint.textContent = `lentidão · ${items.slowRemaining.toFixed(1)}s`;
+      else itemHint.textContent = item ? 'ESPAÇO para usar' : 'passe por uma caixa';
+      itemChip.classList.toggle('has-item', item !== null);
+      itemChip.classList.toggle('has-shield', items.shieldRemaining > 0);
+      itemChip.classList.toggle('is-slowed', items.slowRemaining > 0);
+
       const chargePercent = Math.round(vehicle.driftCharge * 100);
       driftFill.style.transform = `scaleX(${vehicle.driftCharge})`;
       driftValue.textContent = `${chargePercent}%`;
       driftChip.classList.toggle('is-drifting', vehicle.drifting);
       driftChip.classList.toggle('is-boosting', vehicle.boostRemaining > 0);
-      speedChip.classList.toggle('is-impact', vehicle.impactStrength > 0.28);
+      speedChip.classList.toggle('is-impact', vehicle.impactStrength > 0.28 || items.hitFlashSeconds > 0);
 
       if (vehicle.boostRemaining > 0) {
         driftLabel.textContent = 'TURBO';
         driftValue.textContent = `${vehicle.boostRemaining.toFixed(1)}s`;
-        driftFill.style.transform = `scaleX(${Math.min(vehicle.boostRemaining / 1.2, 1)})`;
+        driftFill.style.transform = `scaleX(${Math.min(vehicle.boostRemaining / 1.7, 1)})`;
       } else if (vehicle.drifting) {
         driftLabel.textContent = 'CARREGANDO';
       } else {

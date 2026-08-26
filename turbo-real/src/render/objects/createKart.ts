@@ -6,6 +6,9 @@ export interface KartMotionVisualState {
   drifting: boolean;
   lateralSpeed: number;
   boostRemaining: number;
+  shieldRemaining: number;
+  slowRemaining: number;
+  hitFlashSeconds: number;
   deltaSeconds: number;
 }
 
@@ -28,6 +31,7 @@ export function createKart(appearance: KartAppearance = {}): KartVisual {
     color: appearance.bodyColor ?? 0xf7c948,
     roughness: 0.5,
     metalness: 0.08,
+    emissive: 0x000000,
   });
   const accentMaterial = new THREE.MeshStandardMaterial({
     color: appearance.accentColor ?? 0x1ba65a,
@@ -113,6 +117,30 @@ export function createKart(appearance: KartAppearance = {}): KartVisual {
     return flame;
   });
 
+  const shield = new THREE.Mesh(
+    new THREE.SphereGeometry(2.35, 18, 12),
+    new THREE.MeshBasicMaterial({
+      color: 0x77d7ff,
+      transparent: true,
+      opacity: 0.16,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+    }),
+  );
+  shield.position.y = 0.75;
+  shield.scale.y = 0.72;
+  shield.visible = false;
+  kart.add(shield);
+
+  const slowRing = new THREE.Mesh(
+    new THREE.TorusGeometry(1.55, 0.09, 8, 28),
+    new THREE.MeshBasicMaterial({ color: 0xff5f91, transparent: true, opacity: 0.72 }),
+  );
+  slowRing.rotation.x = Math.PI / 2;
+  slowRing.position.y = 0.16;
+  slowRing.visible = false;
+  kart.add(slowRing);
+
   kart.traverse((object) => {
     if (object instanceof THREE.Mesh) object.receiveShadow = true;
   });
@@ -149,6 +177,24 @@ export function createKart(appearance: KartAppearance = {}): KartVisual {
           flame.scale.set(1, pulse, 1);
         }
       }
+
+      shield.visible = state.shieldRemaining > 0;
+      if (shield.visible) {
+        const pulse = 1 + Math.sin(wheelSpin * 0.18) * 0.025;
+        shield.scale.set(pulse, 0.72 * pulse, pulse);
+        shield.rotation.y += state.deltaSeconds * 0.8;
+      }
+
+      slowRing.visible = state.slowRemaining > 0;
+      if (slowRing.visible) {
+        const stickyPulse = 0.92 + Math.sin(wheelSpin * 0.3) * 0.08;
+        slowRing.scale.setScalar(stickyPulse);
+        slowRing.rotation.z += state.deltaSeconds * 0.7;
+      }
+
+      const hitStrength = Math.min(state.hitFlashSeconds / 0.42, 1);
+      bodyMaterial.emissive.setRGB(hitStrength * 0.9, hitStrength * 0.1, hitStrength * 0.05);
+      bodyMaterial.emissiveIntensity = hitStrength * 1.8;
     },
   };
 }

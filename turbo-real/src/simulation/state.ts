@@ -3,6 +3,12 @@ import { AI_DRIVER_PROFILES, getRivalGridPose } from './aiProfiles';
 import { createInitialRaceState, type RaceState } from './RaceController';
 import type { TrackDefinition } from '../track/firstTrack';
 import type { VehicleState } from './vehicle';
+import {
+  createInitialItemWorld,
+  createRacerItemState,
+  type ItemWorldState,
+  type RacerItemState,
+} from './items/types';
 
 export interface RivalState {
   readonly id: string;
@@ -10,6 +16,7 @@ export interface RivalState {
   readonly profile: AIDriverProfile;
   race: RaceState;
   vehicle: VehicleState;
+  items: RacerItemState;
 }
 
 export interface GameState {
@@ -18,6 +25,8 @@ export interface GameState {
   reserve: number;
   race: RaceState;
   vehicle: VehicleState;
+  items: RacerItemState;
+  itemWorld: ItemWorldState;
   rivals: RivalState[];
 }
 
@@ -48,6 +57,7 @@ export function createInitialGameState(track: TrackDefinition): GameState {
       profile,
       race: createInitialRaceState(track, totalRacers),
       vehicle: createVehicleState(pose.x, pose.z, pose.heading),
+      items: createRacerItemState(),
     };
   });
 
@@ -57,6 +67,8 @@ export function createInitialGameState(track: TrackDefinition): GameState {
     reserve: 0,
     race: createInitialRaceState(track, totalRacers),
     vehicle: createVehicleState(track.spawn.x, track.spawn.z, track.spawn.heading),
+    items: createRacerItemState(),
+    itemWorld: createInitialItemWorld(track),
     rivals,
   };
 }

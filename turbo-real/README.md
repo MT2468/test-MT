@@ -2,79 +2,78 @@
 
 Kart racer arcade 3D original sobre educação financeira no Brasil. O projeto se inspira no ritmo e na acessibilidade dos kart racers, sem copiar personagens, pistas, assets ou identidade visual de franquias existentes.
 
-## Fase 5 - Sete pilotos controlados por IA
+## Fase 6 - Sistema de itens arcade
 
-A Fase 5 transforma a corrida solitária da etapa anterior em um grid completo de **8 karts**: o jogador e sete rivais controlados por IA.
+A Fase 6 adiciona a primeira camada de disputa por itens à corrida de oito pilotos da Avenida do Troco. Os itens desta fase são deliberadamente arcade e originais; a camada de educação financeira continua reservada para as fases seguintes.
 
-### Pilotos rivais
+### Caixas de item
 
-- Bia Vector
-- Caio Giro
-- Luna Prisma
-- Nando Faísca
-- Téo Pulso
-- Maya Fluxo
-- Rafa Vento
+A pista agora define cinco fileiras de caixas, cada uma com três opções de linha. No total existem 15 caixas ativas no circuito.
 
-Cada rival tem um perfil próprio de ritmo, disciplina de curva, frequência de drift, linha preferida e intensidade de evasão. As diferenças são de pilotagem, não de estereótipos financeiros ou sociais.
+- a caixa só pode ser coletada por um piloto sem item no inventário;
+- cada piloto possui apenas um slot;
+- quando coletada, a caixa desaparece para todos;
+- a caixa reaparece depois de 4,8 segundos;
+- jogador e IA disputam as mesmas caixas;
+- a configuração das fileiras pertence à definição da pista, não ao renderer.
 
-### IA de pilotagem
+### Sorteio ponderado pela colocação
 
-A IA não move os karts diretamente pela spline. Cada rival recebe comandos abstratos de aceleração, frenagem, esterço e drift, que são executados pelo mesmo modelo físico usado pelo jogador.
+O item recebido depende da posição atual na corrida. Quem está atrás recebe probabilidade maior de itens de recuperação ou ofensivos, enquanto quem está na frente recebe mais opções defensivas e de controle de pista.
 
-O controlador observa:
+O sorteio não altera diretamente velocidade, colocação ou checkpoints. Ele apenas escolhe qual item vai para o slot, preservando a disputa na pista.
 
-- trecho mais próximo da pista;
-- ponto de mira à frente, variável com a velocidade;
-- severidade da próxima curva;
-- posição lateral desejada;
-- velocidade alvo para a curva;
-- distância para outros karts à frente;
-- distância do centro da pista para recuperação.
+### Itens
 
-Quando encontra trânsito próximo, o rival reduz a velocidade alvo e tenta trocar de linha. Quando sai demais do traçado, abandona a linha preferida e prioriza retornar ao centro.
+#### ☀ Turbo Solar
 
-### Física compartilhada
+Converte o slot em um boost imediato de 1,7 segundo. Usa o mesmo sistema de turbo já existente no veículo, portanto continua respeitando a física arcade.
 
-Todos os oito karts são corpos rígidos dinâmicos no mesmo mundo Rapier. Isso significa que:
+#### ◇ Escudo Prisma
 
-- jogador e rivais colidem entre si;
-- impactos podem alterar velocidade e trajetória dos dois envolvidos;
-- IA não atravessa o jogador;
-- rivais continuam sujeitos a gravidade, barreiras e limites do circuito;
-- drift e mini-boost também funcionam nos rivais.
+Cria proteção temporária por 5,5 segundos. O primeiro Pulso Repulsor ou Faixa Grudenta recebido é absorvido e consome o escudo.
 
-### Classificação
+#### ◎ Pulso Repulsor
 
-Cada rival possui seu próprio `RaceController` e precisa obedecer os mesmos checkpoints da Fase 4.
+Afeta pilotos próximos em um raio curto. Alvos sem escudo recebem impulso físico radial, pequena perda de velocidade e feedback visual de impacto.
 
-O ranking é recalculado continuamente usando:
+#### ▰ Faixa Grudenta
 
-1. pilotos que já terminaram, ordenados pelo tempo de chegada;
-2. pilotos ainda correndo, ordenados pelo progresso legal na prova.
+É deixada atrás do kart e permanece na pista por alguns segundos. O primeiro adversário que atravessar a faixa perde velocidade e fica temporariamente limitado em aceleração e velocidade máxima. Um escudo ativo absorve a armadilha.
 
-O HUD agora mostra a colocação como `posição/8`, e a tela final mostra a posição real entre os oito competidores.
+### IA e itens
 
-### Entregue
+Os sete rivais também coletam e usam itens.
 
-- sete pilotos originais de IA;
-- grid de largada em quatro fileiras atrás do jogador;
-- perfis distintos de ritmo e comportamento;
-- leitura de curva e velocidade alvo;
-- lookahead variável conforme velocidade;
-- linhas laterais preferidas;
-- evasão simples de tráfego;
-- recuperação quando o kart se afasta do centro da pista;
-- drift controlado pela IA;
-- mini-boost dos rivais;
-- oito corpos rígidos dinâmicos no Rapier;
-- colisão kart contra kart;
-- um `RaceController` por rival;
-- classificação em tempo real entre 8 pilotos;
-- correção do progresso legal para karts posicionados atrás da linha de largada;
-- karts rivais com paletas visuais próprias;
-- HUD atualizado para `1º/8`, `2º/8` etc.;
-- física, circuito, checkpoints, voltas e direção errada das fases anteriores preservados.
+- Turbo Solar é usado quando o kart já possui velocidade suficiente;
+- Escudo Prisma é ativado defensivamente;
+- Pulso Repulsor prioriza momentos com adversários próximos;
+- Faixa Grudenta é preferida quando existe tráfego atrás;
+- itens mantidos por tempo demais também são usados para evitar inventário eternamente travado.
+
+A IA continua decidindo pilotagem em `AIController`; a estratégia e os efeitos de itens vivem no sistema de itens.
+
+### Física e estado
+
+`ItemController` decide coleta, inventário, uso, escudo, hazards e temporizadores. `KartPhysics` recebe apenas efeitos físicos explícitos, como impulso, redução instantânea de velocidade e modificadores temporários de lentidão.
+
+Isso mantém a separação:
+
+1. sistema de itens decide o efeito;
+2. Rapier executa movimento e impulso;
+3. o estado serializável registra inventário, escudo, lentidão, caixas e hazards;
+4. Three.js desenha caixas, hazards e feedback dos karts;
+5. o HUD apenas lê o estado.
+
+### Feedback visual
+
+- caixas de item flutuam e giram;
+- caixas coletadas desaparecem durante o cooldown;
+- Faixa Grudenta aparece fisicamente sobre o asfalto;
+- Escudo Prisma cria uma bolha translúcida ao redor do kart;
+- lentidão cria um anel visual próximo ao solo;
+- impactos de item fazem o chassi piscar;
+- o HUD possui um slot dedicado com ícone, nome e estado atual.
 
 ## Controles
 
@@ -85,6 +84,9 @@ O HUD agora mostra a colocação como `posição/8`, e a tela final mostra a pos
 | Virar à esquerda | `A` ou `←` |
 | Virar à direita | `D` ou `→` |
 | Drift | `Shift` esquerdo ou direito + curva |
+| Usar item | `Espaço` |
+
+`Espaço` é tratado como ação única: manter a tecla pressionada não dispara repetidamente nem consome automaticamente o próximo item coletado.
 
 ## Executar
 
@@ -107,33 +109,40 @@ npm run build
 ```text
 src/
 ├── input/
+│   ├── actions.ts
+│   └── KeyboardInput.ts
 ├── physics/
-│   └── KartPhysics.ts          # jogador + 7 corpos rivais + pista
+│   └── KartPhysics.ts
 ├── render/
 │   ├── app/GameApp.ts
 │   ├── camera/ChaseCamera.ts
-│   ├── objects/createKart.ts   # aparência parametrizada por piloto
+│   ├── items/createItemScene.ts
+│   ├── objects/createKart.ts
 │   ├── race/createRaceMarkers.ts
 │   └── track/createTrackScene.ts
 ├── simulation/
-│   ├── AIController.ts         # percepção, decisão e ranking da frota
-│   ├── aiProfiles.ts           # perfis dos sete rivais + grid
-│   ├── RaceController.ts       # checkpoints e progresso legal
-│   ├── state.ts                # jogador + rivais serializáveis
+│   ├── items/
+│   │   ├── ItemController.ts
+│   │   └── types.ts
+│   ├── AIController.ts
+│   ├── aiProfiles.ts
+│   ├── RaceController.ts
+│   ├── state.ts
 │   └── vehicle.ts
 ├── track/
 │   └── firstTrack.ts
-└── ui/createHud.ts
+├── ui/createHud.ts
+├── items.css
+├── race.css
+└── styles.css
 ```
 
-A separação continua intencional: a IA decide entradas, Rapier executa a física, `RaceController` valida a corrida e Three.js apenas mostra o resultado.
+## Limite intencional da Fase 6
 
-## Limite intencional da Fase 5
-
-Os rivais já dirigem, colidem e disputam posição, mas ainda não existem caixas de item, ataques, economia interativa durante a corrida, seleção de pilotos ou campeonato. A IA também não usa itens porque esse sistema ainda não existe.
+Os itens já alteram a corrida, mas ainda não representam decisões de educação financeira. Não existem orçamento, crédito, reserva de emergência, juros, Pix, inflação ou escolhas de custo de oportunidade durante a prova. Também ainda não existem seleção de pilotos, campeonato, áudio completo ou multiplayer.
 
 ## Próxima fase
 
-**Fase 6: sistema de itens arcade.**
+**Fase 7: sistema financeiro da corrida.**
 
-O próximo objetivo é adicionar caixas de item, inventário de um slot, seleção ponderada pela posição na corrida e os primeiros itens originais do Turbo Real, antes de conectar a camada financeira nas fases seguintes.
+O próximo objetivo é introduzir saldo em reais virtuais, reserva de emergência e custos/consequências persistentes de decisões financeiras, conectando finalmente a educação financeira ao loop de corrida sem transformar a partida em um questionário.
