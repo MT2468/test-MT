@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { KeyboardInput } from '../../input/KeyboardInput';
 import { KartPhysics } from '../../physics/KartPhysics';
 import { AIFleetController } from '../../simulation/AIController';
+import { FinanceController } from '../../simulation/finance/FinanceController';
 import { ItemController } from '../../simulation/items/ItemController';
 import type { RacerItemState } from '../../simulation/items/types';
 import { RaceController } from '../../simulation/RaceController';
@@ -33,6 +34,7 @@ export class GameApp {
     private readonly race: RaceController,
     private readonly ai: AIFleetController,
     private readonly items: ItemController,
+    private readonly finance: FinanceController,
     track: TrackDefinition,
     private readonly onStateUpdate: (state: GameState) => void = () => {},
   ) {
@@ -129,6 +131,7 @@ export class GameApp {
     this.race.advance(deltaSeconds, this.state.vehicle);
     this.ai.advanceRace(deltaSeconds, this.state.race);
     this.items.advance(deltaSeconds, this.input.consumeUseItem(), this.physics);
+    this.finance.advance(deltaSeconds, this.input.consumeFinanceAction(), this.state.race);
     if (this.state.race.finished) this.state.phase = 'finished';
 
     this.itemScene.update(time / 1000, this.state.itemWorld);

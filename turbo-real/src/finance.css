@@ -1,0 +1,139 @@
+.wallet-chip {
+  gap: 12px;
+}
+
+.wallet-chip span {
+  white-space: nowrap;
+}
+
+.wallet-chip__debt {
+  opacity: 0.62;
+  transition: opacity 140ms ease, color 140ms ease;
+}
+
+.wallet-chip__debt.has-debt {
+  color: #ffb39f;
+  opacity: 1;
+}
+
+.wallet-chip__debt.has-debt strong {
+  color: #ffd2c8;
+}
+
+.finance-toast {
+  position: fixed;
+  left: 50%;
+  top: 15.5%;
+  z-index: 11;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: min(430px, calc(100vw - 32px));
+  padding: 9px 13px;
+  border: 1px solid rgba(91, 245, 154, 0.36);
+  border-radius: 14px;
+  background: rgba(4, 31, 17, 0.84);
+  box-shadow: 0 18px 54px rgba(0, 0, 0, 0.22);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.finance-toast > strong {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  flex: 0 0 30px;
+  border-radius: 9px;
+  background: #59eda0;
+  color: #07341e;
+  font-size: 0.72rem;
+  letter-spacing: 0.03em;
+}
+
+.finance-toast > span {
+  color: #ecfff3;
+  font-size: 0.72rem;
+  font-weight: 800;
+  line-height: 1.25;
+}
+
+.finance-result {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px 14px;
+  width: 100%;
+  margin-top: 8px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.finance-result > span {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  color: rgba(239, 255, 244, 0.66);
+  font-size: 0.68rem;
+}
+
+.finance-result > span strong {
+  color: #ffffff;
+  font-variant-numeric: tabular-nums;
+}
+
+.finance-result > span:nth-child(3) strong {
+  color: #ffb7a5;
+}
+
+.finance-result > span:nth-child(4) strong {
+  color: #7ff0b2;
+}
+
+.finance-result > small {
+  grid-column: 1 / -1;
+  margin-top: 2px;
+  color: #f7c948;
+  font-size: 0.66rem;
+  font-weight: 750;
+  text-align: center;
+}
+
+@media (max-width: 760px) {
+  .wallet-chip {
+    max-width: min(280px, calc(100vw - 150px));
+  }
+
+  .finance-toast {
+    top: 19%;
+  }
+}
+
+@media (max-width: 520px) {
+  .wallet-chip {
+    max-width: 54vw;
+    gap: 3px;
+  }
+
+  .wallet-chip span {
+    font-size: 0.67rem;
+  }
+
+  .finance-toast {
+    top: 21%;
+  }
+
+  .finance-result {
+    grid-template-columns: 1fr;
+  }
+
+  .finance-result > small {
+    grid-column: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wallet-chip__debt {
+    transition: none;
+  }
+}

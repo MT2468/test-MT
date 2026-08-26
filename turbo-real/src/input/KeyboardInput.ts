@@ -1,4 +1,5 @@
 import { keyboardBindings, type GameAction } from './actions';
+import type { FinanceInputAction } from '../simulation/finance/FinanceController';
 import type { DrivingInput } from '../simulation/vehicle';
 
 function isEditableTarget(target: EventTarget | null): boolean {
@@ -32,6 +33,18 @@ export class KeyboardInput {
     if (!this.triggered.has('use-item')) return false;
     this.triggered.delete('use-item');
     return true;
+  }
+
+  consumeFinanceAction(): FinanceInputAction | null {
+    if (this.triggered.has('save-reserve')) {
+      this.triggered.delete('save-reserve');
+      return 'save';
+    }
+    if (this.triggered.has('withdraw-reserve')) {
+      this.triggered.delete('withdraw-reserve');
+      return 'withdraw';
+    }
+    return null;
   }
 
   dispose(): void {
