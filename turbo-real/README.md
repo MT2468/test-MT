@@ -2,113 +2,93 @@
 
 Kart racer arcade 3D original sobre educação financeira no Brasil, feito com Three.js, TypeScript, Vite e Rapier.
 
-## Fase 13 - Playtest e balanceamento
+## Fase 14 - Publicação final
 
-A Fase 13 transforma o protótipo em uma versão mensurável. Em vez de ajustar IA, economia e desempenho apenas por sensação, o jogo passa a coletar telemetria e analisar automaticamente as quatro pistas da Copa Primeiro Salário.
+A Fase 14 fecha o primeiro roadmap técnico do Turbo Real. O jogo deixa de depender do launcher de desenvolvimento que transpila TypeScript no navegador e passa a ser publicado como uma build Vite de produção no GitHub Pages.
 
-### Modo QA
+### URL pública
 
-Abra o launcher com `?qa=1` para ativar o painel de telemetria:
+```text
+https://mt2468.github.io/test-MT/turbo-real-play/
+```
+
+O modo de diagnóstico da Fase 13 continua disponível:
 
 ```text
 https://mt2468.github.io/test-MT/turbo-real-play/?qa=1
 ```
 
-O painel mede durante a corrida:
+## Pipeline de produção
 
-- FPS médio;
-- frame time médio e pior frame;
-- quantidade de frames acima de 33 ms;
-- pico de draw calls;
-- pico de triângulos;
-- velocidade média e máxima;
-- tempo em direção errada;
-- tempo total em boost;
-- impactos;
-- itens coletados e usados;
-- lentidões recebidas;
-- escudos consumidos;
-- decisões financeiras resolvidas;
-- posição e tempo final;
-- saldo, reserva, dívida e valor protegido pela reserva.
+O workflow `.github/workflows/python-ai-pages.yml` virou o deploy unificado do site do repositório.
 
-O botão `COPIAR RELATÓRIO` gera um bloco de texto curto para comparar corridas entre dispositivos, pistas e versões.
-
-### Análise de pista
-
-`src/diagnostics/trackAnalysis.ts` calcula automaticamente:
-
-- comprimento estimado do circuito;
-- curvatura média;
-- pico de curvatura;
-- tecnicidade combinando curvas e largura;
-- escala de ritmo da IA;
-- escala de look-ahead da IA;
-- renda-base projetada da corrida;
-- custos-base projetados;
-- pressão econômica;
-- avisos de configuração fora da faixa esperada.
-
-O catálogo também é auditado no boot para detectar IDs duplicados, poucos checkpoints, poucas fileiras de itens, pista excessivamente estreita ou economia muito fora da faixa.
-
-### Balanceamento da IA
-
-A personalidade dos sete rivais continua vindo de `aiProfiles.ts`, mas o ritmo agora também considera a geometria da pista.
-
-Em pistas mais técnicas:
-
-- a IA olha mais à frente;
-- o drift começa um pouco mais cedo;
-- o ritmo recebe pequena compensação para evitar que curvas apertadas aumentem a dificuldade de forma descontrolada.
-
-A posição da pista dentro da Copa Primeiro Salário continua influenciando a dificuldade pretendida. Portanto, Feira Central, Circuito do Orçamento e Corrida do Fim do Mês não ficam artificialmente iguais à Avenida do Troco.
-
-### Separação de responsabilidades
+Fluxo:
 
 ```text
-TrackDefinition
-      ↓
-trackAnalysis ────────┐
-      ↓               │
-AIFleetController     │
-                      ↓
-GameState ──> PlaytestTelemetry ──> painel QA / relatório
-                      ↑
-Three renderer.info ──┘
+push na main
+    ↓
+checkout
+    ↓
+Node 22 + npm install
+    ↓
+tsc --noEmit + vite build
+    ↓
+monta artifact do site
+    ├── preserva o site existente / python-ai
+    └── substitui /turbo-real-play/ por turbo-real/dist
+    ↓
+GitHub Pages artifact
+    ↓
+deploy-pages
 ```
 
-A telemetria observa o jogo. Ela não concede velocidade, dinheiro, item ou vantagem.
+A publicação só acontece depois de uma build bem-sucedida. Se TypeScript ou Vite falharem, o deploy não substitui a versão pública anterior.
 
-## Copa Primeiro Salário
+## Bundle
 
-1. Avenida do Troco
-2. Feira Central
-3. Circuito do Orçamento
-4. Corrida do Fim do Mês
+`vite.config.ts` mantém caminhos relativos para que o jogo funcione dentro de `/test-MT/turbo-real-play/` e separa dependências maiores em chunks próprios:
 
-Cada pista mantém cenário, traçado e economia próprios. Todos os valores financeiros são fictícios de gameplay e não representam taxas, preços ou recomendações reais.
+- `three`;
+- `@dimforge/rapier3d-compat`;
+- código do Turbo Real.
 
-## Controles
+Source maps de produção ficam desativados. O código-fonte continua disponível no GitHub, mas `turbo-real/src/` não é copiado para o artifact publicado.
 
-### Teclado
+O antigo `turbo-real-play/index.html` permanece no repositório apenas como fallback informativo. No Pages ele é substituído pelo `index.html` gerado pelo Vite.
 
-| Ação | Tecla |
-| --- | --- |
-| Acelerar | `W` / `↑` |
-| Frear / Ré | `S` / `↓` |
-| Virar | `A/D` / `←/→` |
-| Drift | `Shift` |
-| Item | `Espaço` |
-| Guardar R$10 | `E` |
-| Retirar R$10 | `Q` |
-| Decisões | `1` / `2` |
-| Pausa | `Esc` |
+## Site unificado
 
-Gamepad e controles touch continuam disponíveis desde a Fase 11.
+O repositório já tinha outra aplicação publicada em `python-ai/web/`. Para impedir workflows diferentes de disputarem a mesma instalação do GitHub Pages, existe agora um único pipeline de deploy.
 
-## Executar
+O artifact preserva o `index.html` da raiz, que continua redirecionando para `python-ai/web/`, e publica Turbo Real em sua subpasta própria.
+
+## Conteúdo do jogo
+
+A versão publicada inclui o conteúdo acumulado das Fases 0 a 13:
+
+- Copa Primeiro Salário com 4 circuitos;
+- 8 pilotos, sendo 7 rivais de IA;
+- física arcade com Rapier;
+- drift, mini-turbo e colisões;
+- quatro itens arcade;
+- checkpoints, voltas e classificação;
+- saldo, reserva, dívida e custos simulados;
+- decisões financeiras durante a corrida;
+- menus, pausa, reinício e resultados;
+- áudio procedural;
+- partículas e feedback de velocidade;
+- teclado, gamepad e controles touch;
+- cenários procedurais por pista;
+- economia específica por circuito;
+- telemetria QA e relatório copiável;
+- balanceamento de IA baseado na geometria da pista.
+
+Todos os valores financeiros são fictícios de gameplay. Eles não representam taxas, preços, produtos financeiros ou recomendação financeira real.
+
+## Desenvolvimento local
 
 ```bash
+cd turbo-real
 npm install
 npm run dev
 ```
@@ -118,40 +98,25 @@ Validação:
 ```bash
 npm run typecheck
 npm run build
+npm run preview
 ```
 
-## Checklist de playtest da Fase 13
+## Arquitetura de publicação
 
-Para cada uma das quatro pistas:
+```text
+turbo-real/src
+      ↓
+TypeScript + Vite
+      ↓
+turbo-real/dist
+      ↓
+Pages artifact/turbo-real-play
+      ↓
+GitHub Pages
+```
 
-1. largar e confirmar grid de 8 pilotos;
-2. completar pelo menos uma volta;
-3. observar se IA evita barreiras nas curvas principais;
-4. coletar e usar itens;
-5. provocar ou receber pelo menos um impacto;
-6. confirmar decisões financeiras;
-7. testar pausa e retomada;
-8. conferir HUD em desktop/mobile;
-9. concluir a corrida quando possível;
-10. copiar o relatório QA.
+A simulação continua separada de Three.js e da camada DOM. A Fase 14 altera distribuição e entrega, não regras de corrida.
 
-### Metas iniciais de diagnóstico
+## Estado do roadmap
 
-Estas metas são guardrails, não garantias de desempenho em todo aparelho:
-
-- nenhum alerta estrutural crítico do catálogo;
-- FPS médio próximo da taxa de atualização em hardware compatível;
-- poucos frames acima de 33 ms em desktop moderno;
-- IA capaz de completar a pista sem depender de teleporte;
-- diferença de dificuldade progressiva entre as quatro pistas;
-- economia mais pressionada no fim da copa sem tornar a corrida matematicamente impossível.
-
-## Limite desta fase
-
-O CI valida TypeScript e build, mas não substitui playtest visual. Como este projeto usa WebGL, uma validação completa ainda requer abrir o jogo em navegador real, pilotar as quatro pistas e revisar screenshots/telemetria. A Fase 13 fornece a instrumentação para esse processo ser reproduzível.
-
-## Próxima fase
-
-**Fase 14: publicação final e GitHub Pages.**
-
-O próximo passo é consolidar o launcher provisório em uma build de produção do Vite, publicar o jogo sem transpilar TypeScript no navegador e fechar a primeira versão pública jogável.
+As Fases 0 a 14 formam o primeiro protótipo público completo. Expansões futuras podem adicionar novas copas, carreira persistente, novos conjuntos de decisões, acessibilidade avançada, multiplayer ou um ciclo adicional de playtest, mas deixam de ser pré-requisitos para publicar a versão atual.
