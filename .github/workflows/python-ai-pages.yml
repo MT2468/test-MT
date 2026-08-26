@@ -1,29 +1,81 @@
-name: Deploy Python AI
+name: Deploy Site
+
 on:
   push:
     branches: [main]
-    paths: ['python-ai/**','.github/workflows/python-ai-pages.yml']
+    paths:
+      - 'python-ai/**'
+      - 'turbo-real/**'
+      - 'turbo-real-play/**'
+      - '.github/workflows/python-ai-pages.yml'
   workflow_dispatch:
+
 permissions:
   contents: read
   pages: write
   id-token: write
+
 concurrency:
   group: pages
   cancel-in-progress: true
+
 jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install Turbo Real dependencies
+        working-directory: turbo-real
+        run: npm install --no-audit --no-fund
+
+      - name: Build Turbo Real production bundle
+        working-directory: turbo-real
+        run: npm run build
+
+      - name: Assemble Pages site
+        shell: bash
+        run: |
+          set -euo pipefail
+          SITE="${RUNNER_TEMP}/site"
+          rm -rf "$SITE"
+          mkdir -p "$SITE"
+          rsync -a \
+            --exclude='.git/' \
+            --exclude='.github/' \
+            --exclude='node_modules/' \
+            --exclude='turbo-real/' \
+            --exclude='turbo-real-play/' \
+            ./ "$SITE/"
+          mkdir -p "$SITE/turbo-real-play"
+          cp -a turbo-real/dist/. "$SITE/turbo-real-play/"
+          touch "$SITE/.nojekyll"
+          test -f "$SITE/index.html"
+          test -f "$SITE/turbo-real-play/index.html"
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+        with:
+          enablement: true
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: ${{ runner.temp }}/site
+
   deploy:
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
+    needs: build
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/configure-pages@v5
-        with:
-          enablement: true
-      - uses: actions/upload-pages-artifact@v3
-        with:
-          path: python-ai/web
-      - id: deployment
+      - name: Deploy to GitHub Pages
+        id: deployment
         uses: actions/deploy-pages@v4
