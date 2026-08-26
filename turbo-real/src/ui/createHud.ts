@@ -1,10 +1,11 @@
+import { calculateNetWorth } from '../simulation/finance/types';
 import { getItemDefinition } from '../simulation/items/types';
 import type { GameState } from '../simulation/state';
 
 const brl = new Intl.NumberFormat('pt-BR', {
   style: 'currency',
   currency: 'BRL',
-  maximumFractionDigits: 0,
+  maximumFractionDigits: 2,
 });
 
 function formatTime(totalSeconds: number): string {
@@ -28,7 +29,7 @@ export function createHud(host: HTMLElement, initialState: GameState): HudContro
       <span class="brand-chip__flag" aria-hidden="true">◆</span>
       <div>
         <strong>TURBO REAL</strong>
-        <span>Avenida do Troco · itens arcade</span>
+        <span>Avenida do Troco · corrida financeira</span>
       </div>
     </section>
 
@@ -40,14 +41,15 @@ export function createHud(host: HTMLElement, initialState: GameState): HudContro
       </div>
     </section>
 
-    <section class="wallet-chip" aria-label="Estado financeiro de demonstração">
-      <span>Saldo <strong>${brl.format(initialState.balance)}</strong></span>
-      <span>Reserva <strong>${brl.format(initialState.reserve)}</strong></span>
+    <section class="wallet-chip" aria-label="Estado financeiro">
+      <span>Saldo <strong data-balance>${brl.format(initialState.finance.balance)}</strong></span>
+      <span>Reserva <strong data-reserve>${brl.format(initialState.finance.reserve)}</strong></span>
+      <span class="wallet-chip__debt" data-debt-row>Dívida <strong data-debt>${brl.format(initialState.finance.debt)}</strong></span>
     </section>
 
     <section class="controls-chip" aria-label="Controles">
-      <strong>WASD / SETAS · SHIFT · ESPAÇO</strong>
-      <span>dirigir · drift · usar item</span>
+      <strong>WASD · SHIFT · ESPAÇO · E/Q</strong>
+      <span>dirigir · drift · item · guardar/retirar R$10</span>
     </section>
 
     <section class="item-chip" aria-label="Item atual">
@@ -71,6 +73,10 @@ export function createHud(host: HTMLElement, initialState: GameState): HudContro
       <small data-direction>D · 0 m</small>
     </section>
 
+    <section class="finance-toast" data-finance-toast aria-live="polite" hidden>
+      <strong>R$</strong><span data-finance-message></span>
+    </section>
+
     <section class="wrong-way-chip" data-wrong-way hidden aria-live="assertive">
       <strong>↺ DIREÇÃO ERRADA</strong>
       <span>retorne ao sentido da pista</span>
@@ -81,6 +87,13 @@ export function createHud(host: HTMLElement, initialState: GameState): HudContro
       <strong data-finish-position>1º DE 8</strong>
       <small data-finish-time>00:00.000</small>
       <em data-best-lap>Melhor volta · --:--.---</em>
+      <div class="finance-result">
+        <span>Saldo <strong data-final-balance>R$0</strong></span>
+        <span>Reserva <strong data-final-reserve>R$0</strong></span>
+        <span>Dívida <strong data-final-debt>R$0</strong></span>
+        <span>Patrimônio <strong data-final-net-worth>R$0</strong></span>
+        <small data-final-protected>Reserva protegeu R$0</small>
+      </div>
     </section>
   `;
   host.append(hud);
@@ -104,34 +117,30 @@ export function createHud(host: HTMLElement, initialState: GameState): HudContro
   const itemIcon = hud.querySelector<HTMLElement>('[data-item-icon]');
   const itemName = hud.querySelector<HTMLElement>('[data-item-name]');
   const itemHint = hud.querySelector<HTMLElement>('[data-item-hint]');
+  const balance = hud.querySelector<HTMLElement>('[data-balance]');
+  const reserve = hud.querySelector<HTMLElement>('[data-reserve]');
+  const debt = hud.querySelector<HTMLElement>('[data-debt]');
+  const debtRow = hud.querySelector<HTMLElement>('[data-debt-row]');
+  const financeToast = hud.querySelector<HTMLElement>('[data-finance-toast]');
+  const financeMessage = hud.querySelector<HTMLElement>('[data-finance-message]');
+  const finalBalance = hud.querySelector<HTMLElement>('[data-final-balance]');
+  const finalReserve = hud.querySelector<HTMLElement>('[data-final-reserve]');
+  const finalDebt = hud.querySelector<HTMLElement>('[data-final-debt]');
+  const finalNetWorth = hud.querySelector<HTMLElement>('[data-final-net-worth]');
+  const finalProtected = hud.querySelector<HTMLElement>('[data-final-protected]');
 
   if (
-    !speed ||
-    !direction ||
-    !driftLabel ||
-    !driftValue ||
-    !driftFill ||
-    !driftChip ||
-    !speedChip ||
-    !position ||
-    !lap ||
-    !raceDetail ||
-    !wrongWay ||
-    !finish ||
-    !finishPosition ||
-    !finishTime ||
-    !bestLap ||
-    !itemChip ||
-    !itemIcon ||
-    !itemName ||
-    !itemHint
+    !speed || !direction || !driftLabel || !driftValue || !driftFill || !driftChip || !speedChip ||
+    !position || !lap || !raceDetail || !wrongWay || !finish || !finishPosition || !finishTime || !bestLap ||
+    !itemChip || !itemIcon || !itemName || !itemHint || !balance || !reserve || !debt || !debtRow ||
+    !financeToast || !financeMessage || !finalBalance || !finalReserve || !finalDebt || !finalNetWorth || !finalProtected
   ) {
-    throw new Error('HUD da Fase 6 incompleto.');
+    throw new Error('HUD da Fase 7 incompleto.');
   }
 
   const controller: HudController = {
     update(state): void {
-      const { vehicle, race, items } = state;
+      const { vehicle, race, items, finance } = state;
       speed.textContent = String(Math.round(Math.abs(vehicle.speed) * 3.6));
       const gear = vehicle.speed < -0.1 ? 'R' : 'D';
       direction.textContent = `${gear} · ${Math.round(vehicle.distanceTravelled)} m`;
@@ -141,6 +150,13 @@ export function createHud(host: HTMLElement, initialState: GameState): HudContro
       const sector = race.finished ? race.checkpointCount : Math.min(race.checkpointsPassed + 1, race.checkpointCount);
       raceDetail.textContent = `SETOR ${sector}/${race.checkpointCount} · ${formatTime(race.raceTimeSeconds)}`;
       wrongWay.hidden = !race.wrongWay || race.finished;
+
+      balance.textContent = brl.format(finance.balance);
+      reserve.textContent = brl.format(finance.reserve);
+      debt.textContent = brl.format(finance.debt);
+      debtRow.classList.toggle('has-debt', finance.debt > 0);
+      financeToast.hidden = finance.messageRemaining <= 0 || race.finished;
+      financeMessage.textContent = finance.lastMessage;
 
       const item = getItemDefinition(items.inventory);
       itemIcon.textContent = item?.icon ?? '?';
@@ -174,6 +190,11 @@ export function createHud(host: HTMLElement, initialState: GameState): HudContro
         finishPosition.textContent = `${race.position}º DE ${race.totalRacers}`;
         finishTime.textContent = formatTime(race.raceTimeSeconds);
         bestLap.textContent = `Melhor volta · ${race.bestLapTimeSeconds === null ? '--:--.---' : formatTime(race.bestLapTimeSeconds)}`;
+        finalBalance.textContent = brl.format(finance.balance);
+        finalReserve.textContent = brl.format(finance.reserve);
+        finalDebt.textContent = brl.format(finance.debt);
+        finalNetWorth.textContent = brl.format(calculateNetWorth(finance));
+        finalProtected.textContent = `Reserva protegeu ${brl.format(finance.protectedByReserve)} do imprevisto`;
       }
     },
     dispose(): void {
