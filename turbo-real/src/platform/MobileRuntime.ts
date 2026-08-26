@@ -5,24 +5,14 @@ interface DeferredInstallPrompt extends Event {
   userChoice: Promise<{ outcome: 'accepted' | 'dismissed'; platform: string }>;
 }
 
-interface WakeLockSentinelLike extends EventTarget {
-  released: boolean;
-  release(): Promise<void>;
-}
-
-interface WakeLockNavigator extends Navigator {
-  wakeLock?: {
-    request(type: 'screen'): Promise<WakeLockSentinelLike>;
-  };
+type MobileNavigator = Navigator & {
   deviceMemory?: number;
   standalone?: boolean;
-}
+};
 
-interface OrientationScreen extends Screen {
-  orientation?: ScreenOrientation & {
-    lock?(orientation: OrientationLockType): Promise<void>;
-  };
-}
+type LockableOrientation = ScreenOrientation & {
+  lock?: (orientation: string) => Promise<void>;
+};
 
 export interface MobileProfile {
   readonly touchCapable: boolean;
@@ -36,7 +26,7 @@ export interface MobileProfile {
 }
 
 function detectProfile(): MobileProfile {
-  const nav = navigator as WakeLockNavigator;
+  const nav = navigator as MobileNavigator;
   const coarse = window.matchMedia('(pointer: coarse)').matches;
   const hoverless = window.matchMedia('(hover: none)').matches;
   const touchCapable = nav.maxTouchPoints > 0 || coarse;
@@ -96,7 +86,7 @@ export class MobileRuntime {
   private installPrompt: DeferredInstallPrompt | null = null;
   private companion: HTMLElement | null = null;
   private installButton: HTMLButtonElement | null = null;
-  private wakeLock: WakeLockSentinelLike | null = null;
+  private wakeLock: WakeLockSentinel | null = null;
   private sessionActive = false;
   private paused = false;
 
@@ -211,8 +201,8 @@ export class MobileRuntime {
     }
 
     try {
-      const orientation = (window.screen as OrientationScreen).orientation;
-      await orientation?.lock?.('landscape');
+      const orientation = window.screen.orientation as LockableOrientation;
+      await orientation.lock?.('landscape');
     } catch {
       // Bloqueio de orientação também é best-effort.
     }
@@ -228,15 +218,14 @@ export class MobileRuntime {
   }
 
   private async syncWakeLock(): Promise<void> {
-    const nav = navigator as WakeLockNavigator;
     const shouldHold = this.profile.mobile && this.sessionActive && !this.paused && document.visibilityState === 'visible';
     if (!shouldHold) {
       await this.releaseWakeLock();
       return;
     }
-    if (this.wakeLock !== null || nav.wakeLock === undefined) return;
+    if (this.wakeLock !== null || !('wakeLock' in navigator)) return;
     try {
-      this.wakeLock = await nav.wakeLock.request('screen');
+      this.wakeLock = await navigator.wakeLock.request('screen');
       this.wakeLock.addEventListener('release', () => {
         this.wakeLock = null;
       }, { once: true });
