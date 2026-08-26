@@ -1,0 +1,103 @@
+.item-chip {
+  grid-column: 2;
+  grid-row: 3;
+  align-self: end;
+  justify-self: center;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 178px;
+  margin-bottom: 108px;
+  padding: 9px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 15px;
+  background: rgba(5, 19, 12, 0.76);
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.22);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  transition: border-color 120ms ease, box-shadow 120ms ease, transform 120ms ease;
+}
+
+.item-chip > strong {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  flex: 0 0 38px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(239, 255, 244, 0.58);
+  font-size: 1.25rem;
+}
+
+.item-chip div {
+  display: grid;
+  gap: 2px;
+}
+
+.item-chip span {
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+}
+
+.item-chip small {
+  color: rgba(239, 255, 244, 0.65);
+  font-size: 0.64rem;
+  white-space: nowrap;
+}
+
+.item-chip.has-item {
+  border-color: rgba(82, 240, 192, 0.52);
+  box-shadow: 0 18px 52px rgba(34, 238, 166, 0.13);
+  transform: translateY(-2px);
+}
+
+.item-chip.has-item > strong {
+  background: rgba(82, 240, 192, 0.14);
+  color: #7ff0c6;
+}
+
+.item-chip.has-shield {
+  border-color: rgba(119, 215, 255, 0.62);
+  box-shadow: 0 18px 52px rgba(69, 187, 255, 0.14);
+}
+
+.item-chip.is-slowed {
+  border-color: rgba(240, 91, 133, 0.62);
+  box-shadow: 0 18px 52px rgba(240, 91, 133, 0.14);
+}
+
+@media (max-width: 760px) {
+  .item-chip {
+    grid-column: 1 / -1;
+    grid-row: 3;
+    margin-bottom: 58px;
+    min-width: 158px;
+    padding: 7px 10px;
+  }
+
+  .item-chip > strong {
+    width: 34px;
+    height: 34px;
+    flex-basis: 34px;
+  }
+}
+
+@media (max-width: 460px) {
+  .item-chip {
+    margin-bottom: 55px;
+  }
+
+  .item-chip small {
+    max-width: 120px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .item-chip {
+    transition: none;
+  }
+}

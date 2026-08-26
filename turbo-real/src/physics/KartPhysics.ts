@@ -1,8 +1,9 @@
 import RAPIER from '@dimforge/rapier3d-compat';
+import type { RivalInputMap } from '../simulation/AIController';
+import type { ItemPhysicsBridge, RacerItemState } from '../simulation/items/types';
 import type { RivalState } from '../simulation/state';
 import { moveTowards, VEHICLE_TUNING, type DrivingInput, type VehicleState } from '../simulation/vehicle';
 import type { TrackDefinition } from '../track/firstTrack';
-import type { RivalInputMap } from '../simulation/AIController';
 
 type RapierWorld = InstanceType<typeof RAPIER.World>;
 type RapierRigidBody = ReturnType<RapierWorld['createRigidBody']>;
@@ -59,7 +60,7 @@ function createVehicleBody(world: RapierWorld, state: VehicleState): RapierRigid
   return body;
 }
 
-export class KartPhysics {
+export class KartPhysics implements ItemPhysicsBridge {
   private accumulator = 0;
   private readonly rivalBodies = new Map<string, VehicleBodyEntry>();
 
@@ -104,13 +105,14 @@ export class KartPhysics {
     rivalInputs: RivalInputMap,
     frameDeltaSeconds: number,
     playerState: VehicleState,
+    playerItems: RacerItemState,
     rivals: readonly RivalState[],
   ): void {
     this.accumulator += Math.min(Math.max(frameDeltaSeconds, 0), MAX_FRAME_DELTA);
 
     let steps = 0;
     while (this.accumulator >= FIXED_TIMESTEP && steps < MAX_STEPS_PER_FRAME) {
-      this.fixedStep(playerInput, rivalInputs, playerState, rivals, FIXED_TIMESTEP);
+      this.fixedStep(playerInput, rivalInputs, playerState, playerItems, rivals, FIXED_TIMESTEP);
       this.accumulator -= FIXED_TIMESTEP;
       steps += 1;
     }
@@ -118,26 +120,52 @@ export class KartPhysics {
     if (steps === MAX_STEPS_PER_FRAME && this.accumulator > FIXED_TIMESTEP) this.accumulator = 0;
   }
 
+  applyItemImpulse(racerId: string, impulseX: number, impulseZ: number): void {
+    const body = this.getRacerBody(racerId);
+    if (!body) return;
+    body.applyImpulse({ x: impulseX, y: 0, z: impulseZ }, true);
+  }
+
+  scaleRacerSpeed(racerId: string, factor: number): void {
+    const body = this.getRacerBody(racerId);
+    if (!body) return;
+    const velocity = body.linvel();
+    const safeFactor = Math.max(0, Math.min(factor, 1));
+    body.setLinvel({ x: velocity.x * safeFactor, y: velocity.y, z: velocity.z * safeFactor }, true);
+  }
+
   dispose(): void {
     this.world.free();
+  }
+
+  private getRacerBody(racerId: string): RapierRigidBody | null {
+    if (racerId === 'player') return this.player.body;
+    return this.rivalBodies.get(racerId)?.body ?? null;
   }
 
   private fixedStep(
     playerInput: DrivingInput,
     rivalInputs: RivalInputMap,
     playerState: VehicleState,
+    playerItems: RacerItemState,
     rivals: readonly RivalState[],
     dt: number,
   ): void {
     const speedBefore = new Map<RapierRigidBody, number>();
     speedBefore.set(this.player.body, horizontalSpeed(this.player.body));
-    this.applyControl(this.player.body, playerState, playerInput, dt);
+    this.applyControl(this.player.body, playerState, playerInput, playerItems, dt);
 
     for (const rival of rivals) {
       const entry = this.rivalBodies.get(rival.id);
       if (!entry) continue;
       speedBefore.set(entry.body, horizontalSpeed(entry.body));
-      this.applyControl(entry.body, rival.vehicle, rivalInputs[rival.id] ?? { throttle: 0, steer: 0, drift: false }, dt);
+      this.applyControl(
+        entry.body,
+        rival.vehicle,
+        rivalInputs[rival.id] ?? { throttle: 0, steer: 0, drift: false },
+        rival.items,
+        dt,
+      );
     }
 
     this.world.timestep = dt;
@@ -154,7 +182,13 @@ export class KartPhysics {
     }
   }
 
-  private applyControl(body: RapierRigidBody, state: VehicleState, input: DrivingInput, dt: number): void {
+  private applyControl(
+    body: RapierRigidBody,
+    state: VehicleState,
+    input: DrivingInput,
+    items: RacerItemState,
+    dt: number,
+  ): void {
     const velocity = body.linvel();
     const heading = state.heading;
     const forwardX = Math.sin(heading);
@@ -164,6 +198,9 @@ export class KartPhysics {
 
     let forwardSpeed = velocity.x * forwardX + velocity.z * forwardZ;
     let lateralSpeed = velocity.x * rightX + velocity.z * rightZ;
+    const slowed = items.slowRemaining > 0;
+    const accelerationScale = slowed ? 0.68 : 1;
+    const speedScale = slowed ? 0.62 : 1;
 
     this.updateDriftAndBoost(input, state, forwardSpeed, dt);
 
@@ -171,24 +208,25 @@ export class KartPhysics {
       if (forwardSpeed < -0.15) {
         forwardSpeed = Math.min(0, forwardSpeed + VEHICLE_TUNING.brakingDeceleration * dt);
       } else {
-        forwardSpeed += VEHICLE_TUNING.forwardAcceleration * dt;
+        forwardSpeed += VEHICLE_TUNING.forwardAcceleration * accelerationScale * dt;
       }
     } else if (input.throttle < 0) {
       if (forwardSpeed > 0.15) {
         forwardSpeed = Math.max(0, forwardSpeed - VEHICLE_TUNING.brakingDeceleration * dt);
       } else {
-        forwardSpeed -= VEHICLE_TUNING.reverseAcceleration * dt;
+        forwardSpeed -= VEHICLE_TUNING.reverseAcceleration * accelerationScale * dt;
       }
     } else {
       forwardSpeed = moveTowards(forwardSpeed, 0, VEHICLE_TUNING.rollingResistance * dt);
     }
 
     if (state.boostRemaining > 0 && forwardSpeed >= 0) {
-      forwardSpeed += VEHICLE_TUNING.boostAcceleration * dt;
+      forwardSpeed += VEHICLE_TUNING.boostAcceleration * accelerationScale * dt;
     }
 
-    const speedLimit = state.boostRemaining > 0 ? VEHICLE_TUNING.maxBoostSpeed : VEHICLE_TUNING.maxForwardSpeed;
-    forwardSpeed = Math.min(speedLimit, Math.max(-VEHICLE_TUNING.maxReverseSpeed, forwardSpeed));
+    const normalLimit = state.boostRemaining > 0 ? VEHICLE_TUNING.maxBoostSpeed : VEHICLE_TUNING.maxForwardSpeed;
+    const speedLimit = normalLimit * speedScale;
+    forwardSpeed = Math.min(speedLimit, Math.max(-VEHICLE_TUNING.maxReverseSpeed * speedScale, forwardSpeed));
 
     const targetSteering = input.steer * VEHICLE_TUNING.maxSteering;
     state.steering = moveTowards(state.steering, targetSteering, VEHICLE_TUNING.steeringResponse * dt);

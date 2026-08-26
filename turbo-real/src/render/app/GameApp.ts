@@ -2,11 +2,14 @@ import * as THREE from 'three';
 import { KeyboardInput } from '../../input/KeyboardInput';
 import { KartPhysics } from '../../physics/KartPhysics';
 import { AIFleetController } from '../../simulation/AIController';
+import { ItemController } from '../../simulation/items/ItemController';
+import type { RacerItemState } from '../../simulation/items/types';
 import { RaceController } from '../../simulation/RaceController';
 import type { GameState } from '../../simulation/state';
 import type { VehicleState } from '../../simulation/vehicle';
 import type { TrackDefinition } from '../../track/firstTrack';
 import { ChaseCamera } from '../camera/ChaseCamera';
+import { createItemScene, type ItemSceneController } from '../items/createItemScene';
 import { createKart, type KartVisual } from '../objects/createKart';
 import { createRaceMarkers } from '../race/createRaceMarkers';
 import { createTrackScene } from '../track/createTrackScene';
@@ -19,6 +22,7 @@ export class GameApp {
   private readonly rivalKarts = new Map<string, KartVisual>();
   private readonly input = new KeyboardInput();
   private readonly chaseCamera = new ChaseCamera(this.camera);
+  private readonly itemScene: ItemSceneController;
   private readonly resizeObserver: ResizeObserver;
   private previousTime = performance.now();
 
@@ -28,6 +32,7 @@ export class GameApp {
     private readonly physics: KartPhysics,
     private readonly race: RaceController,
     private readonly ai: AIFleetController,
+    private readonly items: ItemController,
     track: TrackDefinition,
     private readonly onStateUpdate: (state: GameState) => void = () => {},
   ) {
@@ -53,8 +58,9 @@ export class GameApp {
       );
     }
 
+    this.itemScene = createItemScene(this.state.itemWorld);
     this.buildCircuitScene(track);
-    this.syncKartVisual(this.kart, this.state.vehicle, 0);
+    this.syncKartVisual(this.kart, this.state.vehicle, this.state.items, 0);
     this.syncRivalKarts(0);
     this.chaseCamera.reset(this.state.vehicle);
 
@@ -102,6 +108,7 @@ export class GameApp {
 
     this.scene.add(createTrackScene(track));
     this.scene.add(createRaceMarkers(track));
+    this.scene.add(this.itemScene.group);
     this.scene.add(this.kart.group);
     for (const visual of this.rivalKarts.values()) this.scene.add(visual.group);
   }
@@ -116,13 +123,16 @@ export class GameApp {
       rivalInputs,
       deltaSeconds,
       this.state.vehicle,
+      this.state.items,
       this.state.rivals,
     );
     this.race.advance(deltaSeconds, this.state.vehicle);
     this.ai.advanceRace(deltaSeconds, this.state.race);
+    this.items.advance(deltaSeconds, this.input.consumeUseItem(), this.physics);
     if (this.state.race.finished) this.state.phase = 'finished';
 
-    this.syncKartVisual(this.kart, this.state.vehicle, deltaSeconds);
+    this.itemScene.update(time / 1000, this.state.itemWorld);
+    this.syncKartVisual(this.kart, this.state.vehicle, this.state.items, deltaSeconds);
     this.syncRivalKarts(deltaSeconds);
     this.chaseCamera.update(this.state.vehicle, deltaSeconds);
     this.onStateUpdate(this.state);
@@ -132,11 +142,16 @@ export class GameApp {
   private syncRivalKarts(deltaSeconds: number): void {
     for (const rival of this.state.rivals) {
       const visual = this.rivalKarts.get(rival.id);
-      if (visual) this.syncKartVisual(visual, rival.vehicle, deltaSeconds);
+      if (visual) this.syncKartVisual(visual, rival.vehicle, rival.items, deltaSeconds);
     }
   }
 
-  private syncKartVisual(visual: KartVisual, vehicle: VehicleState, deltaSeconds: number): void {
+  private syncKartVisual(
+    visual: KartVisual,
+    vehicle: VehicleState,
+    items: RacerItemState,
+    deltaSeconds: number,
+  ): void {
     visual.group.position.set(vehicle.x, vehicle.y, vehicle.z);
     visual.group.rotation.y = -vehicle.heading;
     visual.updateMotion({
@@ -145,6 +160,9 @@ export class GameApp {
       drifting: vehicle.drifting,
       lateralSpeed: vehicle.lateralSpeed,
       boostRemaining: vehicle.boostRemaining,
+      shieldRemaining: items.shieldRemaining,
+      slowRemaining: items.slowRemaining,
+      hitFlashSeconds: items.hitFlashSeconds,
       deltaSeconds,
     });
   }
