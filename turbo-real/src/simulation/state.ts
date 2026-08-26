@@ -1,5 +1,6 @@
 import type { AIDriverProfile } from './aiProfiles';
 import { AI_DRIVER_PROFILES, getRivalGridPose } from './aiProfiles';
+import { createInitialDecisionState, type DecisionState } from './decisions/types';
 import { createInitialFinancialState, type FinancialState } from './finance/types';
 import {
   createInitialItemWorld,
@@ -21,8 +22,9 @@ export interface RivalState {
 }
 
 export interface GameState {
-  phase: 'racing' | 'finished';
+  phase: 'racing' | 'decision' | 'finished';
   finance: FinancialState;
+  decisions: DecisionState;
   race: RaceState;
   vehicle: VehicleState;
   items: RacerItemState;
@@ -64,6 +66,7 @@ export function createInitialGameState(track: TrackDefinition): GameState {
   return {
     phase: 'racing',
     finance: createInitialFinancialState(),
+    decisions: createInitialDecisionState(),
     race: createInitialRaceState(track, totalRacers),
     vehicle: createVehicleState(track.spawn.x, track.spawn.z, track.spawn.heading),
     items: createRacerItemState(),

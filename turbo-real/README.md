@@ -2,114 +2,80 @@
 
 Kart racer arcade 3D original sobre educação financeira no Brasil. O projeto se inspira no ritmo e na acessibilidade dos kart racers, sem copiar personagens, pistas, assets ou identidade visual de franquias existentes.
 
-## Fase 7 - Sistema financeiro da corrida
+## Fase 8 - Decisões financeiras durante a corrida
 
-A Fase 7 conecta finalmente a educação financeira ao loop jogável. Ainda não existem perguntas, respostas certas ou telas de quiz: esta etapa cria o motor financeiro que a Fase 8 usará para decisões guiadas.
+A Fase 8 usa o motor financeiro da fase anterior para criar escolhas contextuais com consequência real. Não há pergunta de prova nem “resposta certa”: a corrida pausa, mostra duas alternativas e deixa o resultado aparecer no saldo, na reserva, na dívida ou no desempenho do kart.
 
-O objetivo é fazer dinheiro ter consequências mecânicas sem interromper a pilotagem.
+### Como funciona
 
-### Estado financeiro
+- existem três pontos de decisão na Avenida do Troco;
+- a corrida inteira pausa enquanto o cartão está aberto;
+- `1` escolhe a primeira opção e `2` escolhe a segunda;
+- física, IA, cronômetro, itens e finanças ficam congelados durante a leitura;
+- cada decisão é registrada com horário, escolha e consequência;
+- decisões já resolvidas não aparecem novamente;
+- o HUD mostra compromissos financeiros futuros quando existirem;
+- o relatório final mostra custos gerados pelas escolhas.
 
-O jogador começa cada corrida com:
+### 1. Reserva Expressa
 
-- saldo: R$120;
-- reserva de emergência: R$20;
-- dívida: R$0.
+Aparece no começo da primeira volta.
 
-O estado financeiro é serializável e separado de física, itens e renderização. Ele registra saldo, reserva, dívida, renda total, despesas, juros simulados, valor protegido pela reserva e um extrato das últimas transações.
+**Opção 1:** separar R$20 do saldo e colocar na reserva.
 
-### Fluxo de dinheiro durante a prova
+**Opção 2:** manter o dinheiro no saldo.
 
-#### Renda por setor
+A escolha não cria nem destrói dinheiro. Ela muda a função daquele valor: liquidez imediata ou proteção para o imprevisto de R$45 já existente no sistema financeiro.
 
-Cada checkpoint intermediário validado rende R$6. A renda só é concedida quando o `RaceController` confirma progresso legal, portanto cortar caminho não produz dinheiro.
+### 2. Crédito Turbo
 
-#### Custo operacional
+Aparece mais adiante na primeira volta.
 
-Ao completar cada volta, a corrida cobra R$18 de custo operacional.
+**Aceitar:** recebe 7 segundos de turbo, paga R$30 imediatamente e cria duas cobranças futuras de R$12 nos fechamentos das próximas voltas.
 
-Esse é um gasto rotineiro. O sistema tenta pagar pelo saldo normal e **não usa a reserva automaticamente**. Se o saldo for insuficiente, a parte não paga vira dívida.
+**Recusar:** não recebe turbo e não cria compromisso financeiro.
 
-#### Imprevisto
+O custo total programado é R$54. Se o saldo não conseguir cobrir uma cobrança, a diferença vira dívida e pode receber os juros simulados da corrida.
 
-No segundo setor da segunda volta ocorre um reparo inesperado de R$45.
+`Crédito Turbo` é um produto totalmente fictício de gameplay. Os valores não representam cartão, empréstimo, financiamento ou taxa real do mercado brasileiro.
 
-Para esse evento o fluxo é diferente:
+### 3. Atalho Premium
 
-1. usa a reserva de emergência disponível;
-2. depois usa o saldo;
-3. somente o restante vira dívida.
+Aparece na segunda volta.
 
-O jogo registra quanto desse imprevisto foi absorvido pela reserva e mostra esse valor no relatório final.
+**Pagar R$25:** recebe 4 segundos de turbo sem parcelas futuras.
 
-#### Dívida e juros simulados
+**Seguir na pista:** preserva o dinheiro e abre mão da vantagem de desempenho.
 
-Se houver dívida ao concluir uma volta, ela recebe 5% de juros **simulados da corrida**.
+Essa escolha introduz custo de oportunidade sem declarar uma alternativa universalmente melhor: o valor do turbo depende da situação da corrida e da situação financeira do jogador.
 
-Essa taxa é puramente uma regra de gameplay para demonstrar crescimento de dívida. Ela não representa Selic, taxa bancária, cartão de crédito ou qualquer taxa real do mercado brasileiro.
+## Compromissos futuros
 
-#### Premiação
+O estado financeiro agora aceita compromissos parcelados genéricos. Cada compromisso guarda:
 
-Ao terminar a prova, o saldo recebe prêmio conforme a posição:
-
-| Posição | Prêmio |
-| --- | ---: |
-| 1º | R$80 |
-| 2º | R$68 |
-| 3º | R$58 |
-| 4º | R$48 |
-| 5º | R$40 |
-| 6º | R$34 |
-| 7º | R$28 |
-| 8º | R$24 |
-
-### Reserva durante a corrida
-
-O jogador pode administrar a própria liquidez sem abrir menus:
-
-- `E`: move R$10 do saldo para a reserva;
-- `Q`: move R$10 da reserva para o saldo.
-
-As ações são tratadas como eventos únicos de teclado, então segurar a tecla não transfere dinheiro repetidamente.
-
-A mecânica cria um pequeno conflito real de planejamento: guardar demais pode deixar pouco saldo para despesas rotineiras; guardar de menos deixa o imprevisto menos protegido.
-
-### HUD e relatório final
-
-O HUD agora mostra valores reais do sistema:
-
-- saldo;
-- reserva;
-- dívida;
-- mensagens temporárias de renda, custo, imprevisto, transferência e juros.
-
-Na chegada, além de posição e tempo, aparece um resumo com:
-
-- saldo final;
-- reserva final;
-- dívida final;
-- patrimônio líquido de jogo (`saldo + reserva - dívida`);
-- quanto do imprevisto foi coberto pela reserva.
-
-### Extrato
-
-`FinancialState.transactions` mantém até 24 registros recentes. Cada transação guarda:
-
-- tipo;
 - descrição;
+- valor cobrado por volta;
+- número de cobranças restantes.
+
+Ao completar uma volta, o `FinanceController` cobra compromissos pendentes antes de calcular os juros simulados da dívida. Quando não há saldo suficiente, o déficit vira dívida.
+
+O HUD exibe `Futuro` enquanto ainda existir valor programado para cobrança.
+
+## Relatório e histórico
+
+`DecisionState` é serializável e registra:
+
+- decisão;
 - instante da corrida;
-- valor;
-- saldo depois da operação;
-- reserva depois da operação;
-- dívida depois da operação.
+- opção escolhida;
+- texto da consequência.
 
-A interface de extrato completo ficará para uma fase posterior, mas os dados já existem para relatórios e progressão.
+O relatório final acrescenta:
 
-### Base pedagógica
-
-A mecânica foi desenhada em torno de três ideias centrais de educação financeira no Brasil: organização do orçamento, formação de poupança/resiliência financeira e prevenção do endividamento excessivo. A reserva é tratada como proteção para imprevistos, enquanto despesas previsíveis devem ser planejadas no fluxo normal.
-
-Os números da corrida são deliberadamente pequenos e fictícios. O objetivo não é ensinar uma taxa específica ou sugerir produto financeiro.
+- custo total provocado por decisões;
+- quantidade de decisões registradas;
+- saldo, reserva, dívida e patrimônio já existentes;
+- valor protegido pela reserva.
 
 ## Controles
 
@@ -119,14 +85,49 @@ Os números da corrida são deliberadamente pequenos e fictícios. O objetivo n�
 | Frear / Ré | `S` ou `↓` |
 | Virar à esquerda | `A` ou `←` |
 | Virar à direita | `D` ou `→` |
-| Drift | `Shift` esquerdo ou direito + curva |
+| Drift | `Shift` |
 | Usar item | `Espaço` |
 | Guardar R$10 na reserva | `E` |
 | Retirar R$10 da reserva | `Q` |
+| Opção financeira 1 | `1` |
+| Opção financeira 2 | `2` |
+
+## Arquitetura
+
+```text
+src/
+├── input/
+├── physics/
+├── render/
+├── simulation/
+│   ├── decisions/
+│   │   ├── DecisionController.ts
+│   │   └── types.ts
+│   ├── finance/
+│   │   ├── FinanceController.ts
+│   │   └── types.ts
+│   ├── items/
+│   ├── AIController.ts
+│   ├── RaceController.ts
+│   └── state.ts
+├── track/
+├── ui/createHud.ts
+├── decisions.css
+├── finance.css
+├── items.css
+└── race.css
+```
+
+A separação continua intencional:
+
+1. `DecisionController` decide quando um cartão aparece e traduz a escolha em efeitos explícitos;
+2. `FinanceController` movimenta dinheiro, cria compromissos e cobra parcelas;
+3. `RaceController` fornece apenas progresso validado;
+4. Rapier continua responsável por movimento e colisões;
+5. Three.js não contém regras de decisão;
+6. o HUD apenas representa o estado.
 
 ## Executar
-
-Requer Node.js compatível com Vite 8.
 
 ```bash
 npm install
@@ -140,57 +141,12 @@ npm run typecheck
 npm run build
 ```
 
-## Arquitetura
+## Limite intencional da Fase 8
 
-```text
-src/
-├── input/
-│   ├── actions.ts
-│   └── KeyboardInput.ts
-├── physics/
-│   └── KartPhysics.ts
-├── render/
-│   ├── app/GameApp.ts
-│   ├── camera/ChaseCamera.ts
-│   ├── items/createItemScene.ts
-│   ├── objects/createKart.ts
-│   ├── race/createRaceMarkers.ts
-│   └── track/createTrackScene.ts
-├── simulation/
-│   ├── finance/
-│   │   ├── FinanceController.ts
-│   │   └── types.ts
-│   ├── items/
-│   │   ├── ItemController.ts
-│   │   └── types.ts
-│   ├── AIController.ts
-│   ├── aiProfiles.ts
-│   ├── RaceController.ts
-│   ├── state.ts
-│   └── vehicle.ts
-├── track/
-│   └── firstTrack.ts
-├── ui/createHud.ts
-├── finance.css
-├── items.css
-├── race.css
-└── styles.css
-```
-
-A separação continua deliberada:
-
-1. `FinanceController` decide renda, despesas, reserva, dívida, juros e prêmio;
-2. `RaceController` fornece apenas progresso e posição validados;
-3. Rapier continua responsável exclusivamente por movimento e colisões;
-4. Three.js não contém regras financeiras;
-5. o HUD apenas lê o estado financeiro serializável.
-
-## Limite intencional da Fase 7
-
-Ainda não há cartões de decisão, crédito turbo, parcelamento, Pix, golpes, inflação, investimento ou escolha de custo de oportunidade. Esses sistemas dependem do motor financeiro criado aqui e serão adicionados gradualmente sem transformar a corrida em questionário.
+Ainda não entram Pix, golpes, inflação, investimento, diversificação ou sistema completo de carreira. Também não há julgamento moral automático das escolhas: o jogo mostra custo e efeito para o jogador comparar.
 
 ## Próxima fase
 
-**Fase 8: decisões financeiras durante a corrida.**
+**Fase 9: HUD e menus completos.**
 
-O próximo objetivo é introduzir pontos de decisão rápidos e contextuais, como reservar dinheiro, aceitar crédito para ganhar desempenho imediato ou pagar custos futuros, sempre mostrando consequência depois da escolha em vez de pedir respostas de prova.
+O próximo passo do roadmap é consolidar a experiência em menus de início, pausa, seleção de corrida e resultados, além de melhorar a apresentação das informações financeiras e de corrida sem cobrir o playfield.

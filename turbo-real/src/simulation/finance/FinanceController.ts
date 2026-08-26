@@ -44,15 +44,12 @@ export class FinanceController {
       const completedNow = race.completedLaps - this.lastCompletedLaps;
       for (let index = 0; index < completedNow; index += 1) {
         this.payRoutineExpense(LAP_OPERATING_COST, 'Custo operacional da volta', race.raceTimeSeconds);
+        this.processCommitments(race.raceTimeSeconds);
         this.applyDebtInterest(race.raceTimeSeconds);
       }
     }
 
-    if (
-      !this.state.unexpectedExpenseHandled &&
-      race.completedLaps === 1 &&
-      race.checkpointsPassed >= 2
-    ) {
+    if (!this.state.unexpectedExpenseHandled && race.completedLaps === 1 && race.checkpointsPassed >= 2) {
       this.payEmergencyExpense(EMERGENCY_COST, 'Reparo inesperado', race.raceTimeSeconds);
       this.state.unexpectedExpenseHandled = true;
     }
@@ -65,6 +62,49 @@ export class FinanceController {
 
     this.lastCheckpointsPassed = race.checkpointsPassed;
     this.lastCompletedLaps = race.completedLaps;
+  }
+
+  moveToReserve(amount: number, label: string, atSeconds: number): boolean {
+    const safeAmount = roundMoney(Math.max(0, amount));
+    if (safeAmount <= 0) return true;
+    if (this.state.balance < safeAmount) {
+      this.message(`Saldo insuficiente para ${label.toLowerCase()}`);
+      return false;
+    }
+
+    this.state.balance = roundMoney(this.state.balance - safeAmount);
+    this.state.reserve = roundMoney(this.state.reserve + safeAmount);
+    this.record('decision-save', label, -safeAmount, atSeconds);
+    this.message(`${label} · ${this.money(safeAmount)} na reserva`);
+    return true;
+  }
+
+  chargeDecisionExpense(amount: number, label: string, atSeconds: number): void {
+    const safeAmount = roundMoney(Math.max(0, amount));
+    if (safeAmount <= 0) return;
+    const debtCreated = this.payFromBalanceThenDebt(safeAmount);
+    this.state.totalExpenses = roundMoney(this.state.totalExpenses + safeAmount);
+    this.state.totalDecisionCosts = roundMoney(this.state.totalDecisionCosts + safeAmount);
+    this.record('decision-expense', label, -safeAmount, atSeconds);
+    this.message(debtCreated > 0 ? `${label} · ${this.money(debtCreated)} viraram dívida` : `${label} · -${this.money(safeAmount)}`);
+  }
+
+  scheduleLapCommitment(label: string, amountPerLap: number, charges: number): void {
+    const safeAmount = roundMoney(Math.max(0, amountPerLap));
+    const safeCharges = Math.max(0, Math.floor(charges));
+    if (safeAmount <= 0 || safeCharges <= 0) return;
+
+    this.state.commitments.push({
+      id: this.state.nextCommitmentId,
+      label,
+      amountPerLap: safeAmount,
+      remainingCharges: safeCharges,
+    });
+    this.state.nextCommitmentId += 1;
+  }
+
+  announce(text: string): void {
+    this.message(text);
   }
 
   private handleTransfer(action: FinanceInputAction, atSeconds: number): void {
@@ -101,14 +141,10 @@ export class FinanceController {
   }
 
   private payRoutineExpense(amount: number, label: string, atSeconds: number): void {
-    let remaining = amount;
-    const fromBalance = Math.min(this.state.balance, remaining);
-    this.state.balance = roundMoney(this.state.balance - fromBalance);
-    remaining = roundMoney(remaining - fromBalance);
-    if (remaining > 0) this.state.debt = roundMoney(this.state.debt + remaining);
+    const debtCreated = this.payFromBalanceThenDebt(amount);
     this.state.totalExpenses = roundMoney(this.state.totalExpenses + amount);
     this.record('routine-expense', label, -amount, atSeconds);
-    this.message(remaining > 0 ? `R$${remaining} viraram dívida` : `-R$${amount} · custo da volta`);
+    this.message(debtCreated > 0 ? `${this.money(debtCreated)} viraram dívida` : `-${this.money(amount)} · custo da volta`);
   }
 
   private payEmergencyExpense(amount: number, label: string, atSeconds: number): void {
@@ -127,9 +163,26 @@ export class FinanceController {
     this.record('emergency', label, -amount, atSeconds);
     this.message(
       fromReserve > 0
-        ? `Imprevisto R$${amount} · reserva cobriu R$${fromReserve}`
-        : `Imprevisto R$${amount} sem reserva disponível`,
+        ? `Imprevisto ${this.money(amount)} · reserva cobriu ${this.money(fromReserve)}`
+        : `Imprevisto ${this.money(amount)} sem reserva disponível`,
     );
+  }
+
+  private processCommitments(atSeconds: number): void {
+    for (const commitment of this.state.commitments) {
+      if (commitment.remainingCharges <= 0) continue;
+      const debtCreated = this.payFromBalanceThenDebt(commitment.amountPerLap);
+      commitment.remainingCharges -= 1;
+      this.state.totalExpenses = roundMoney(this.state.totalExpenses + commitment.amountPerLap);
+      this.state.totalDecisionCosts = roundMoney(this.state.totalDecisionCosts + commitment.amountPerLap);
+      this.record('installment', commitment.label, -commitment.amountPerLap, atSeconds);
+      this.message(
+        debtCreated > 0
+          ? `${commitment.label} · ${this.money(debtCreated)} viraram dívida`
+          : `${commitment.label} · -${this.money(commitment.amountPerLap)}`,
+      );
+    }
+    this.state.commitments = this.state.commitments.filter((commitment) => commitment.remainingCharges > 0);
   }
 
   private applyDebtInterest(atSeconds: number): void {
@@ -143,9 +196,22 @@ export class FinanceController {
     this.message(`Dívida recebeu R$${interest.toFixed(2)} de juros simulados`);
   }
 
+  private payFromBalanceThenDebt(amount: number): number {
+    let remaining = roundMoney(amount);
+    const fromBalance = Math.min(this.state.balance, remaining);
+    this.state.balance = roundMoney(this.state.balance - fromBalance);
+    remaining = roundMoney(remaining - fromBalance);
+    if (remaining > 0) this.state.debt = roundMoney(this.state.debt + remaining);
+    return remaining;
+  }
+
   private message(text: string): void {
     this.state.lastMessage = text;
     this.state.messageRemaining = MESSAGE_SECONDS;
+  }
+
+  private money(amount: number): string {
+    return `R$${roundMoney(amount).toFixed(2).replace('.', ',')}`;
   }
 
   private record(kind: FinancialTransactionKind, label: string, amount: number, atSeconds: number): void {

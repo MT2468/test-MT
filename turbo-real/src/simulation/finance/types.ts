@@ -5,7 +5,10 @@ export type FinancialTransactionKind =
   | 'interest'
   | 'save'
   | 'withdraw'
-  | 'prize';
+  | 'prize'
+  | 'decision-expense'
+  | 'decision-save'
+  | 'installment';
 
 export interface FinancialTransaction {
   readonly id: number;
@@ -18,6 +21,13 @@ export interface FinancialTransaction {
   readonly debtAfter: number;
 }
 
+export interface FinancialCommitment {
+  readonly id: number;
+  readonly label: string;
+  readonly amountPerLap: number;
+  remainingCharges: number;
+}
+
 export interface FinancialState {
   balance: number;
   reserve: number;
@@ -27,6 +37,7 @@ export interface FinancialState {
   totalIncome: number;
   totalExpenses: number;
   totalInterest: number;
+  totalDecisionCosts: number;
   protectedByReserve: number;
   transferCooldown: number;
   lastMessage: string;
@@ -34,7 +45,9 @@ export interface FinancialState {
   unexpectedExpenseHandled: boolean;
   finishAwarded: boolean;
   nextTransactionId: number;
+  nextCommitmentId: number;
   transactions: FinancialTransaction[];
+  commitments: FinancialCommitment[];
 }
 
 export function createInitialFinancialState(): FinancialState {
@@ -47,6 +60,7 @@ export function createInitialFinancialState(): FinancialState {
     totalIncome: 0,
     totalExpenses: 0,
     totalInterest: 0,
+    totalDecisionCosts: 0,
     protectedByReserve: 0,
     transferCooldown: 0,
     lastMessage: 'E guarda R$10 · Q retira R$10',
@@ -54,10 +68,19 @@ export function createInitialFinancialState(): FinancialState {
     unexpectedExpenseHandled: false,
     finishAwarded: false,
     nextTransactionId: 1,
+    nextCommitmentId: 1,
     transactions: [],
+    commitments: [],
   };
 }
 
 export function calculateNetWorth(state: FinancialState): number {
   return state.balance + state.reserve - state.debt;
+}
+
+export function calculateOutstandingCommitments(state: FinancialState): number {
+  return state.commitments.reduce(
+    (total, commitment) => total + commitment.amountPerLap * commitment.remainingCharges,
+    0,
+  );
 }
