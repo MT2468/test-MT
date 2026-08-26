@@ -1,105 +1,148 @@
 # Turbo Real 🇧🇷🏎️💸
 
-Kart racer arcade 3D original sobre educação financeira no Brasil. O projeto se inspira no ritmo e na acessibilidade dos kart racers, sem copiar personagens, pistas, assets, músicas ou identidade visual de franquias existentes.
+Kart racer arcade 3D original sobre educação financeira no Brasil. O projeto usa Three.js, TypeScript, Vite e Rapier, sem copiar personagens, pistas, assets, músicas ou identidade visual de franquias existentes.
 
-## Fase 11 - Mobile e gamepad
+## Fase 12 - Expansão de conteúdo
 
-A Fase 11 transforma a camada de entrada em um sistema multiplataforma. Teclado, controle físico e toque agora alimentam o mesmo `PlayerInput`, enquanto física, IA e regras de corrida continuam recebendo apenas comandos abstratos de direção, aceleração, drift e ações.
+A Fase 12 transforma a antiga pista única em uma pequena copa jogável. Física, IA, itens, áudio, decisões e controles continuam sendo os mesmos sistemas; pistas passam a ser dados de catálogo com traçado, tema visual e contexto financeiro próprios.
 
-### PlayerInput unificado
+## Copa Primeiro Salário
 
-`src/input/PlayerInput.ts` combina três fontes sem acoplar a simulação ao dispositivo:
+A primeira copa agora possui quatro circuitos selecionáveis:
 
-- teclado;
-- Gamepad API;
-- Pointer Events para toque.
+| # | Circuito | Dificuldade | Conceito | Renda por setor | Custo por volta | Imprevisto |
+| --- | --- | --- | --- | ---: | ---: | ---: |
+| 1 | Avenida do Troco | Fácil | Troco, caixa e reserva | R$6 | R$18 | R$45 |
+| 2 | Feira Central | Médio | Renda variável e pequenos custos | R$7 | R$20 | R$38 |
+| 3 | Circuito do Orçamento | Difícil | Planejamento de despesas | R$8 | R$24 | R$55 |
+| 4 | Corrida do Fim do Mês | Difícil | Pressão de caixa e reserva | R$5 | R$26 | R$60 |
 
-A saída continua sendo `DrivingInput` e eventos de borda já usados pelo jogo. Isso evita criar versões separadas da física para PC, controle e celular.
+Todos os valores acima são fictícios de gameplay. Eles não representam preços, taxas, produtos financeiros ou recomendações reais.
 
-O sistema também limpa entradas ao perder foco, ocultar a aba, pausar ou trocar de contexto, reduzindo aceleração presa, drift fantasma e escolhas disparadas por botão antigo.
+### Avenida do Troco
 
-### Mapeamento de gamepad
+Circuito urbano-futurista original que continua sendo a porta de entrada da copa. Tem pista larga, cenário de praça, palmeiras e prédios coloridos. A economia é a referência de equilíbrio da campanha.
 
-O primeiro controle conectado com mapeamento `standard` é priorizado. Se não existir, o primeiro controle disponível é usado.
+### Feira Central
 
-| Ação | Gamepad |
-| --- | --- |
-| Virar | Analógico esquerdo ou D-pad |
-| Acelerar | RT / R2 |
-| Frear / Ré | LT / L2 |
-| Drift | A / Cross |
-| Usar item | X / Square |
-| Guardar R$10 na reserva | Y / Triangle |
-| Retirar R$10 da reserva | B / Circle |
-| Pausar / continuar | Start / Menu |
-| Decisão financeira opção 1 | A / Cross |
-| Decisão financeira opção 2 | B / Circle |
+Traçado mais estreito e movimentado, com fileiras de barracas, toldos coloridos e curvas mais fechadas. A renda por setor cresce, mas o custo operacional também aumenta.
 
-O analógico possui deadzone e os botões que devem acontecer uma única vez usam detecção de borda. Conectar um controle com um botão já segurado não dispara item ou pausa automaticamente.
+### Circuito do Orçamento
 
-### Menus com gamepad
+Distrito financeiro estilizado com torres procedurais e uma sequência técnica de curvas. É a pista que mais explicita que receita maior não elimina a necessidade de planejar despesas.
 
-`createGameUi.ts` também passa a observar Gamepad API enquanto os menus estão abertos.
+### Corrida do Fim do Mês
 
-- D-pad ou analógico vertical muda o foco;
-- `A` ativa o botão em foco;
-- `B` funciona como voltar em pausa/resultados;
-- `Start` larga pelo menu e corre novamente pelos resultados;
-- foco de gamepad recebe contorno visual próprio;
-- mouse/toque remove o destaque de gamepad ao assumir a interação.
+Circuito mais longo e crepuscular, com iluminação quente, postes e cenário de fim de expediente. A entrada por setor é menor, os custos sobem e a reserva passa a ter peso maior no resultado financeiro.
 
-A navegação de menu é separada da pilotagem para não transformar o renderer ou a simulação em gerenciadores de foco DOM.
+## Catálogo de pistas
 
-### Controles de toque
+`src/track/firstTrack.ts` continua exportando `TrackDefinition`, mas agora também contém o gerador genérico `createTrackDefinition`.
 
-Telas com toque recebem uma camada DOM própria apenas durante a corrida.
+`src/track/catalog.ts` concentra o conteúdo da copa:
 
-A disposição protege o centro da pista:
+```text
+TrackBlueprint
+  ├── controlPoints
+  ├── largura / barreira
+  ├── visuals
+  ├── economy
+  └── content
+       ↓
+createTrackDefinition
+       ↓
+TrackDefinition
+```
 
-- esquerda: dois botões de direção;
-- direita: acelerar e frear/ré;
-- acima dos pedais: drift e item;
-- acima da direção: guardar/retirar reserva;
-- topo: pausa;
-- decisões financeiras: dois botões grandes dedicados na parte inferior.
+Cada pista gera automaticamente:
 
-Os controles usam Pointer Events e aceitam múltiplos dedos ao mesmo tempo. É possível, por exemplo, acelerar, esterçar e segurar drift simultaneamente.
+- amostras Catmull-Rom;
+- tangentes e vetores laterais;
+- bordas da pista;
+- barreiras;
+- spawn e heading;
+- bounds;
+- 6 checkpoints;
+- 5 fileiras de caixas de item;
+- 3 voltas.
 
-Também são aplicados:
+Isso permite criar novas pistas sem duplicar RaceController, IA, Rapier ou ItemController.
 
-- `touch-action: none` nos controles;
-- prevenção de seleção de texto e menu de contexto;
-- `safe-area-inset-*` para aparelhos com recortes/bordas;
-- layout reduzido em telas baixas;
-- aviso discreto de que a corrida fica melhor em horizontal quando o telefone está em retrato;
-- HUD levantado alguns pixels em aparelhos touch para não colidir com os pedais.
+## Cenários temáticos
 
-Os controles desaparecem em pausa, menu e resultados. Durante uma decisão, direção/pedais somem e ficam apenas os botões de escolha.
+`createTrackScene` deixou de ter Avenida do Troco hardcoded. Agora recebe `track.visuals.theme` e monta um cenário procedural apropriado:
 
-### Arquitetura
+- `urban`: praça, palmeiras e prédios;
+- `market`: barracas e toldos de feira;
+- `budget`: torres e escultura de barras;
+- `month-end`: iluminação de crepúsculo, postes e prédios baixos.
+
+Cores de céu, névoa, chão, zebra, barreira, arco de largada, exposição e iluminação também vêm dos dados da pista.
+
+Nenhum novo modelo 3D ou arquivo de textura externo foi adicionado nesta fase.
+
+## Economia por circuito
+
+`FinanceController` agora recebe `TrackEconomyConfig`.
+
+Cada circuito pode definir:
+
+- renda por checkpoint;
+- custo operacional por volta;
+- custo e rótulo do imprevisto;
+- taxa fictícia de juros da dívida.
+
+A lógica financeira continua centralizada no controller. O renderizador e a física não conhecem essas regras.
+
+A taxa simulada de dívida permanece em 5% por volta nos quatro circuitos da Fase 12. Ela existe apenas para tornar o efeito de dívida perceptível em uma corrida curta e não representa taxa real de banco, cartão, Selic ou mercado.
+
+## Seleção de circuito
+
+O menu ganhou uma faixa própria da Copa Primeiro Salário com quatro cartões. Cada cartão mostra:
+
+- ordem na copa;
+- nome;
+- dificuldade;
+- conceito financeiro;
+- renda por setor;
+- custo por volta.
+
+Mouse, toque e gamepad podem selecionar os cartões. O sistema de navegação de gamepad da Fase 11 detecta os novos botões automaticamente.
+
+Ao largar, a pista selecionada é copiada para a sessão atual. `Reiniciar Corrida` mantém a mesma pista, enquanto voltar ao menu permite escolher outra.
+
+## Arquitetura acumulada
 
 ```text
 src/
-├── input/
-│   ├── actions.ts
-│   ├── KeyboardInput.ts   # legado das fases anteriores
-│   └── PlayerInput.ts     # teclado + gamepad + toque
-├── ui/createGameUi.ts     # navegação de menu por teclado/toque/gamepad
-├── render/app/GameApp.ts  # consome PlayerInput
-└── controls.css           # controles touch + foco de gamepad
+├── track/
+│   ├── firstTrack.ts       # contrato + gerador genérico + Avenida do Troco
+│   └── catalog.ts          # quatro pistas da Copa Primeiro Salário
+├── render/track/
+│   └── createTrackScene.ts # cenário procedural por tema
+├── simulation/finance/
+│   └── FinanceController.ts
+├── ui/
+│   ├── createGameUi.ts
+│   └── createTrackSelector.ts
+├── content.css
+└── main.ts
 ```
 
-Fluxo de entrada:
+A separação continua intencional:
 
-```text
-teclado ─┐
-gamepad ─┼─> PlayerInput ─> DrivingInput / ações ─> GameApp ─> física/controladores
-toque ───┘
-```
+1. pista é dado;
+2. corrida e IA consomem `TrackDefinition`;
+3. Rapier cria colisores a partir das mesmas amostras;
+4. Three.js apenas renderiza o tema;
+5. FinanceController recebe somente a configuração econômica;
+6. UI seleciona qual definição será usada na próxima sessão.
 
-Nenhuma regra financeira, item, IA ou física consulta `navigator.getGamepads()` ou eventos de ponteiro diretamente.
+## Controles
 
-## Controles de teclado
+Teclado, gamepad e toque continuam disponíveis.
+
+### Teclado
 
 | Ação | Teclas |
 | --- | --- |
@@ -121,54 +164,38 @@ npm install
 npm run dev
 ```
 
-Validação:
+Validação esperada:
 
 ```bash
 npm run typecheck
 npm run build
 ```
 
-### Checklist funcional da Fase 11
+## Conteúdo acumulado até a Fase 12
 
-- teclado continua funcionando como antes;
-- gamepad pode ser conectado antes ou durante a sessão;
-- RT/LT têm resposta analógica;
-- D-pad funciona como fallback de direção;
-- Start pausa e continua;
-- A/B selecionam decisões sem repetir ao manter pressionado;
-- menu e resultados podem ser navegados sem mouse;
-- dois ou mais controles touch podem ser pressionados simultaneamente;
-- pausar enquanto acelera não deixa acelerador preso;
-- controles touch não cobrem o centro da pista;
-- retrato continua utilizável, mas sugere orientação horizontal.
+O protótipo possui:
 
-## Conteúdo acumulado até a Fase 11
-
-O protótipo já possui:
-
-- circuito fechado Avenida do Troco;
+- 4 circuitos na Copa Primeiro Salário;
 - física arcade Rapier;
 - drift e mini-turbo;
 - 7 rivais de IA;
-- checkpoints, 3 voltas e classificação;
-- caixas e quatro itens arcade;
+- checkpoints, voltas e classificação;
+- quatro itens arcade;
 - saldo, reserva, dívida, custos, juros simulados e premiação;
-- Reserva Expressa, Crédito Turbo e Atalho Premium;
-- menu inicial, pausa, reinício, saída para menu e resultados;
-- motor e efeitos procedurais;
-- partículas de drift, boost, impacto e itens;
-- linhas de velocidade;
+- decisões Reserva Expressa, Crédito Turbo e Atalho Premium;
+- menu, pausa, reinício e resultados;
+- áudio procedural;
+- partículas e linhas de velocidade;
 - câmera e iluminação refinadas;
-- teclado, gamepad e controles touch.
+- teclado, gamepad e controles touch;
+- cenário e pressão econômica diferentes por circuito.
 
-Os valores financeiros são fictícios de gameplay e não representam taxas, produtos ou recomendações financeiras reais.
+## Limite intencional da Fase 12
 
-## Limite intencional da Fase 11
-
-Ainda existe apenas um circuito e um modo principal de corrida. Não entram nesta etapa remapeamento personalizado de botões, vibração/haptics, multiplayer, carreira ou campeonato. O suporte touch prioriza navegadores móveis modernos com Pointer Events.
+Ainda não entram as Copas Pix, Crédito, Reserva e Futuro, carreira/campeonato persistente ou multiplayer. As quatro pistas desta fase usam as três decisões financeiras já existentes; novas famílias de decisões ficam para expansão posterior.
 
 ## Próxima fase
 
-**Fase 12: expansão de conteúdo.**
+**Fase 13: playtest e balanceamento.**
 
-O próximo passo é usar a fundação já completa para adicionar mais circuitos, copas, variações de cenário e conteúdo financeiro, reaproveitando física, IA, itens, decisões, menus e o novo sistema de entrada multiplataforma.
+O próximo passo é validar a copa inteira, medir IA, tempos de volta, frequência/força dos itens, economia das quatro pistas, legibilidade mobile e dificuldade relativa antes de aumentar novamente o conteúdo.

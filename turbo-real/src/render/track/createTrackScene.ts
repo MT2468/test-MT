@@ -57,8 +57,8 @@ function createCurbs(track: TrackDefinition): THREE.InstancedMesh {
   const material = new THREE.MeshStandardMaterial({ roughness: 0.78, vertexColors: true });
   const curbs = new THREE.InstancedMesh(geometry, material, track.samples.length * 2);
   const matrix = new THREE.Matrix4();
-  const green = new THREE.Color(0x1ba65a);
-  const yellow = new THREE.Color(0xf7c948);
+  const primary = new THREE.Color(track.visuals.curbPrimary);
+  const secondary = new THREE.Color(track.visuals.curbSecondary);
   let instance = 0;
 
   for (let index = 0; index < track.samples.length; index += 1) {
@@ -68,12 +68,12 @@ function createCurbs(track: TrackDefinition): THREE.InstancedMesh {
 
     segmentTransform(a.leftEdgeX, a.leftEdgeZ, b.leftEdgeX, b.leftEdgeZ, 0.075, matrix);
     curbs.setMatrixAt(instance, matrix);
-    curbs.setColorAt(instance, Math.floor(index / 2) % 2 === 0 ? green : yellow);
+    curbs.setColorAt(instance, Math.floor(index / 2) % 2 === 0 ? primary : secondary);
     instance += 1;
 
     segmentTransform(a.rightEdgeX, a.rightEdgeZ, b.rightEdgeX, b.rightEdgeZ, 0.075, matrix);
     curbs.setMatrixAt(instance, matrix);
-    curbs.setColorAt(instance, Math.floor(index / 2) % 2 === 0 ? yellow : green);
+    curbs.setColorAt(instance, Math.floor(index / 2) % 2 === 0 ? secondary : primary);
     instance += 1;
   }
 
@@ -86,7 +86,11 @@ function createCurbs(track: TrackDefinition): THREE.InstancedMesh {
 
 function createBarriers(track: TrackDefinition): THREE.InstancedMesh {
   const geometry = new THREE.BoxGeometry(0.48, 1.08, 1);
-  const material = new THREE.MeshStandardMaterial({ color: 0xe9edf0, roughness: 0.76, metalness: 0.08 });
+  const material = new THREE.MeshStandardMaterial({
+    color: track.visuals.barrierColor,
+    roughness: 0.76,
+    metalness: 0.08,
+  });
   const barriers = new THREE.InstancedMesh(geometry, material, track.samples.length * 2);
   const matrix = new THREE.Matrix4();
   let instance = 0;
@@ -144,11 +148,11 @@ function addStartGrid(group: THREE.Group, track: TrackDefinition): void {
 function addStartArch(group: THREE.Group, track: TrackDefinition): void {
   const start = track.samples[0];
   const heading = Math.atan2(start.tangentX, start.tangentZ);
-  const postMaterial = new THREE.MeshStandardMaterial({ color: 0x126b3b, roughness: 0.52 });
+  const postMaterial = new THREE.MeshStandardMaterial({ color: track.visuals.curbPrimary, roughness: 0.52 });
   const beamMaterial = new THREE.MeshStandardMaterial({
-    color: 0xf7c948,
-    emissive: 0x6d5100,
-    emissiveIntensity: 0.18,
+    color: track.visuals.accentColor,
+    emissive: track.visuals.accentColor,
+    emissiveIntensity: 0.12,
     roughness: 0.48,
   });
   const postDistance = track.barrierOffset + 1.15;
@@ -169,6 +173,21 @@ function addStartArch(group: THREE.Group, track: TrackDefinition): void {
   beam.rotation.y = heading;
   beam.castShadow = true;
   group.add(beam);
+}
+
+function addGround(group: THREE.Group, track: TrackDefinition): void {
+  const centerX = (track.bounds.minX + track.bounds.maxX) * 0.5;
+  const centerZ = (track.bounds.minZ + track.bounds.maxZ) * 0.5;
+  const width = track.bounds.maxX - track.bounds.minX + 100;
+  const depth = track.bounds.maxZ - track.bounds.minZ + 100;
+  const ground = new THREE.Mesh(
+    new THREE.PlaneGeometry(width, depth),
+    new THREE.MeshStandardMaterial({ color: track.visuals.groundColor, roughness: 1 }),
+  );
+  ground.rotation.x = -Math.PI / 2;
+  ground.position.set(centerX, -0.02, centerZ);
+  ground.receiveShadow = true;
+  group.add(ground);
 }
 
 function addPalm(group: THREE.Group, x: number, z: number, scale: number): void {
@@ -197,6 +216,7 @@ function addBuilding(
   depth: number,
   height: number,
   color: number,
+  roofColor: number,
 ): void {
   const building = new THREE.Mesh(
     new THREE.BoxGeometry(width, height, depth),
@@ -209,28 +229,14 @@ function addBuilding(
 
   const roof = new THREE.Mesh(
     new THREE.BoxGeometry(width * 0.72, 0.35, depth * 0.72),
-    new THREE.MeshStandardMaterial({ color: 0xf7c948, roughness: 0.64 }),
+    new THREE.MeshStandardMaterial({ color: roofColor, roughness: 0.64 }),
   );
   roof.position.set(x, height + 0.18, z);
   roof.castShadow = true;
   group.add(roof);
 }
 
-function addScenery(group: THREE.Group, track: TrackDefinition): void {
-  const centerX = (track.bounds.minX + track.bounds.maxX) * 0.5;
-  const centerZ = (track.bounds.minZ + track.bounds.maxZ) * 0.5;
-  const width = track.bounds.maxX - track.bounds.minX + 90;
-  const depth = track.bounds.maxZ - track.bounds.minZ + 90;
-
-  const ground = new THREE.Mesh(
-    new THREE.PlaneGeometry(width, depth),
-    new THREE.MeshStandardMaterial({ color: 0x237b45, roughness: 1 }),
-  );
-  ground.rotation.x = -Math.PI / 2;
-  ground.position.set(centerX, -0.02, centerZ);
-  ground.receiveShadow = true;
-  group.add(ground);
-
+function addUrbanScenery(group: THREE.Group, track: TrackDefinition): void {
   const plaza = new THREE.Mesh(
     new THREE.CylinderGeometry(26, 26, 0.12, 48),
     new THREE.MeshStandardMaterial({ color: 0xd8c99b, roughness: 0.96 }),
@@ -240,30 +246,134 @@ function addScenery(group: THREE.Group, track: TrackDefinition): void {
   group.add(plaza);
 
   const palms: ReadonlyArray<readonly [number, number, number]> = [
-    [-20, 18, 1],
-    [0, 22, 0.9],
-    [20, 14, 1.08],
-    [-24, -10, 0.92],
-    [2, -18, 1.05],
-    [24, -12, 0.88],
+    [-20, 18, 1], [0, 22, 0.9], [20, 14, 1.08], [-24, -10, 0.92], [2, -18, 1.05], [24, -12, 0.88],
   ];
   for (const [x, z, scale] of palms) addPalm(group, x, z, scale);
 
   const buildings: ReadonlyArray<readonly [number, number, number, number, number, number]> = [
-    [104, 58, 18, 20, 20, 0x6ba6b8],
-    [108, 18, 16, 18, 30, 0xe08f62],
-    [102, -34, 22, 16, 24, 0x7b8fc5],
-    [78, -90, 24, 18, 18, 0xd26f68],
-    [28, -103, 18, 22, 28, 0x6ca879],
-    [-42, -102, 24, 18, 22, 0xc58e60],
-    [-104, -62, 18, 22, 27, 0x718eb1],
-    [-112, -8, 22, 18, 20, 0xc77b74],
-    [-102, 50, 20, 22, 29, 0x6fa68b],
+    [104, 58, 18, 20, 20, 0x6ba6b8], [108, 18, 16, 18, 30, 0xe08f62], [102, -34, 22, 16, 24, 0x7b8fc5],
+    [78, -90, 24, 18, 18, 0xd26f68], [28, -103, 18, 22, 28, 0x6ca879], [-42, -102, 24, 18, 22, 0xc58e60],
+    [-104, -62, 18, 22, 27, 0x718eb1], [-112, -8, 22, 18, 20, 0xc77b74], [-102, 50, 20, 22, 29, 0x6fa68b],
     [28, 106, 22, 18, 25, 0xb77eaa],
   ];
-  for (const [x, z, buildingWidth, buildingDepth, height, color] of buildings) {
-    addBuilding(group, x, z, buildingWidth, buildingDepth, height, color);
+  for (const [x, z, width, depth, height, color] of buildings) {
+    addBuilding(group, x, z, width, depth, height, color, track.visuals.accentColor);
   }
+}
+
+function addMarketStall(group: THREE.Group, x: number, z: number, color: number, accent: number): void {
+  const base = new THREE.Mesh(
+    new THREE.BoxGeometry(4.6, 1.5, 3.4),
+    new THREE.MeshStandardMaterial({ color, roughness: 0.88 }),
+  );
+  base.position.set(x, 0.75, z);
+  base.castShadow = true;
+  group.add(base);
+
+  const awning = new THREE.Mesh(
+    new THREE.BoxGeometry(5.2, 0.28, 4.1),
+    new THREE.MeshStandardMaterial({ color: accent, roughness: 0.74 }),
+  );
+  awning.position.set(x, 2.15, z);
+  awning.castShadow = true;
+  group.add(awning);
+}
+
+function addMarketScenery(group: THREE.Group, track: TrackDefinition): void {
+  const colors = [0xe87359, 0x4f9fd1, 0xf0b74b, 0x52a86d];
+  for (let row = -2; row <= 2; row += 1) {
+    for (let column = -2; column <= 2; column += 1) {
+      if (Math.abs(row) === 2 && Math.abs(column) === 2) continue;
+      addMarketStall(
+        group,
+        column * 8.2,
+        row * 7.1,
+        colors[(row + column + 8) % colors.length],
+        (row + column) % 2 === 0 ? track.visuals.accentColor : 0xf3e5c2,
+      );
+    }
+  }
+
+  for (const [x, z] of [[-30, 24], [30, 24], [-28, -25], [28, -25]] as const) addPalm(group, x, z, 0.78);
+}
+
+function addBudgetScenery(group: THREE.Group, track: TrackDefinition): void {
+  const towerColors = [0x4b6f8f, 0x607f9c, 0x55776d, 0x68759c];
+  for (let index = 0; index < 10; index += 1) {
+    const angle = (index / 10) * Math.PI * 2;
+    const radius = index % 2 === 0 ? 34 : 24;
+    const height = 13 + (index % 4) * 5;
+    addBuilding(
+      group,
+      Math.cos(angle) * radius,
+      Math.sin(angle) * radius,
+      8 + (index % 3) * 2,
+      8 + ((index + 1) % 3) * 2,
+      height,
+      towerColors[index % towerColors.length],
+      track.visuals.accentColor,
+    );
+  }
+
+  const ledger = new THREE.Group();
+  for (let index = 0; index < 5; index += 1) {
+    const bar = new THREE.Mesh(
+      new THREE.BoxGeometry(2.2, 2 + index * 1.35, 2.2),
+      new THREE.MeshStandardMaterial({ color: index % 2 === 0 ? 0x65d6a6 : 0x7898ff, roughness: 0.48 }),
+    );
+    bar.position.set(-6 + index * 3, 1 + index * 0.675, 0);
+    bar.castShadow = true;
+    ledger.add(bar);
+  }
+  group.add(ledger);
+}
+
+function addLamp(group: THREE.Group, x: number, z: number, color: number): void {
+  const post = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.11, 0.16, 4.8, 7),
+    new THREE.MeshStandardMaterial({ color: 0x26333a, roughness: 0.72 }),
+  );
+  post.position.set(x, 2.4, z);
+  post.castShadow = true;
+  group.add(post);
+
+  const lamp = new THREE.Mesh(
+    new THREE.SphereGeometry(0.28, 10, 8),
+    new THREE.MeshBasicMaterial({ color }),
+  );
+  lamp.position.set(x, 4.85, z);
+  group.add(lamp);
+}
+
+function addMonthEndScenery(group: THREE.Group, track: TrackDefinition): void {
+  const center = new THREE.Mesh(
+    new THREE.CylinderGeometry(29, 29, 0.14, 40),
+    new THREE.MeshStandardMaterial({ color: 0x28323b, roughness: 0.95 }),
+  );
+  center.position.y = 0.01;
+  center.receiveShadow = true;
+  group.add(center);
+
+  for (let index = 0; index < 12; index += 1) {
+    const angle = (index / 12) * Math.PI * 2;
+    const radius = 33;
+    addLamp(group, Math.cos(angle) * radius, Math.sin(angle) * radius, index % 2 === 0 ? 0xffc857 : 0xff86aa);
+  }
+
+  const lowBuildings: ReadonlyArray<readonly [number, number, number, number, number]> = [
+    [-26, 8, 8, 8, 6], [25, 12, 10, 7, 8], [-18, -20, 9, 9, 7], [20, -19, 8, 10, 6],
+  ];
+  for (const [x, z, width, depth, height] of lowBuildings) {
+    addBuilding(group, x, z, width, depth, height, 0x4c596a, track.visuals.accentColor);
+  }
+}
+
+function addScenery(group: THREE.Group, track: TrackDefinition): void {
+  addGround(group, track);
+  if (track.visuals.theme === 'market') addMarketScenery(group, track);
+  else if (track.visuals.theme === 'budget') addBudgetScenery(group, track);
+  else if (track.visuals.theme === 'month-end') addMonthEndScenery(group, track);
+  else addUrbanScenery(group, track);
 }
 
 export function createTrackScene(track: TrackDefinition): THREE.Group {
