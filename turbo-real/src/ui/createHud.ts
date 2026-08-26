@@ -6,7 +6,12 @@ const brl = new Intl.NumberFormat('pt-BR', {
   maximumFractionDigits: 0,
 });
 
-export function createHud(host: HTMLElement, state: GameState): () => void {
+export interface HudController {
+  update(state: GameState): void;
+  dispose(): void;
+}
+
+export function createHud(host: HTMLElement, initialState: GameState): HudController {
   const hud = document.createElement('div');
   hud.className = 'hud';
   hud.innerHTML = `
@@ -18,20 +23,46 @@ export function createHud(host: HTMLElement, state: GameState): () => void {
       </div>
     </section>
 
-    <section class="status-chip" aria-live="polite">
+    <section class="status-chip">
       <span class="status-chip__dot" aria-hidden="true"></span>
       <div>
-        <strong>Fase 0 · Boot técnico</strong>
-        <span>Three.js + TypeScript + Vite</span>
+        <strong>Fase 1 · Direção arcade</strong>
+        <span>Kart dirigível + câmera de perseguição</span>
       </div>
     </section>
 
     <section class="wallet-chip" aria-label="Estado financeiro de demonstração">
-      <span>Saldo <strong>${brl.format(state.balance)}</strong></span>
-      <span>Reserva <strong>${brl.format(state.reserve)}</strong></span>
+      <span>Saldo <strong>${brl.format(initialState.balance)}</strong></span>
+      <span>Reserva <strong>${brl.format(initialState.reserve)}</strong></span>
+    </section>
+
+    <section class="controls-chip" aria-label="Controles">
+      <strong>WASD / SETAS</strong>
+      <span>acelerar · frear/ré · esterçar</span>
+    </section>
+
+    <section class="speed-chip" aria-label="Velocidade do kart">
+      <div><strong data-speed>0</strong><span>km/h</span></div>
+      <small data-direction>D · 0 m</small>
     </section>
   `;
   host.append(hud);
 
-  return () => hud.remove();
+  const speed = hud.querySelector<HTMLElement>('[data-speed]');
+  const direction = hud.querySelector<HTMLElement>('[data-direction]');
+  if (!speed || !direction) throw new Error('HUD da Fase 1 incompleto.');
+
+  const controller: HudController = {
+    update(state): void {
+      speed.textContent = String(Math.round(Math.abs(state.vehicle.speed) * 3.6));
+      const gear = state.vehicle.speed < -0.1 ? 'R' : 'D';
+      direction.textContent = `${gear} · ${Math.round(state.vehicle.distanceTravelled)} m`;
+    },
+    dispose(): void {
+      hud.remove();
+    },
+  };
+
+  controller.update(initialState);
+  return controller;
 }
