@@ -79,6 +79,21 @@ export class GameApp {
     this.renderer.setAnimationLoop((time) => this.render(time));
   }
 
+  pause(): void {
+    if (this.state.phase !== 'racing') return;
+    this.state.phase = 'paused';
+    this.input.clearTransientActions();
+    this.onStateUpdate(this.state);
+  }
+
+  resume(): void {
+    if (this.state.phase !== 'paused') return;
+    this.state.phase = 'racing';
+    this.previousTime = performance.now();
+    this.input.clearTransientActions();
+    this.onStateUpdate(this.state);
+  }
+
   dispose(): void {
     this.renderer.setAnimationLoop(null);
     this.input.dispose();
@@ -121,13 +136,30 @@ export class GameApp {
     const deltaSeconds = Math.min((time - this.previousTime) / 1000, 0.1);
     this.previousTime = time;
 
+    const pauseRequested = this.input.consumePause();
+    if (this.state.phase === 'paused') {
+      if (pauseRequested) this.resume();
+      this.renderFrozenFrame();
+      return;
+    }
+
+    if (pauseRequested && this.state.phase === 'racing') {
+      this.pause();
+      this.renderFrozenFrame();
+      return;
+    }
+
+    if (this.state.phase === 'finished') {
+      this.renderFrozenFrame();
+      return;
+    }
+
     const decisionChoice = this.input.consumeDecisionChoice();
     if (this.state.decisions.active !== null) {
       if (decisionChoice !== null) {
         this.decisions.resolve(decisionChoice, this.finance, this.state.vehicle, this.state.race);
         this.state.phase = this.state.race.finished ? 'finished' : 'racing';
       }
-      this.itemScene.update(time / 1000, this.state.itemWorld);
       this.onStateUpdate(this.state);
       this.renderer.render(this.scene, this.camera);
       return;
@@ -156,6 +188,11 @@ export class GameApp {
     this.syncKartVisual(this.kart, this.state.vehicle, this.state.items, deltaSeconds);
     this.syncRivalKarts(deltaSeconds);
     this.chaseCamera.update(this.state.vehicle, deltaSeconds);
+    this.onStateUpdate(this.state);
+    this.renderer.render(this.scene, this.camera);
+  }
+
+  private renderFrozenFrame(): void {
     this.onStateUpdate(this.state);
     this.renderer.render(this.scene, this.camera);
   }

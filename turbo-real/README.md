@@ -2,80 +2,118 @@
 
 Kart racer arcade 3D original sobre educação financeira no Brasil. O projeto se inspira no ritmo e na acessibilidade dos kart racers, sem copiar personagens, pistas, assets ou identidade visual de franquias existentes.
 
-## Fase 8 - Decisões financeiras durante a corrida
+## Fase 9 - HUD e menus completos
 
-A Fase 8 usa o motor financeiro da fase anterior para criar escolhas contextuais com consequência real. Não há pergunta de prova nem “resposta certa”: a corrida pausa, mostra duas alternativas e deixa o resultado aparecer no saldo, na reserva, na dívida ou no desempenho do kart.
+A Fase 9 transforma o protótipo das fases anteriores em uma sessão de jogo completa. Agora existe um fluxo claro de menu → corrida → pausa → resultados, sem recarregar a página para reiniciar.
 
-### Como funciona
+### Menu principal
 
-- existem três pontos de decisão na Avenida do Troco;
-- a corrida inteira pausa enquanto o cartão está aberto;
-- `1` escolhe a primeira opção e `2` escolhe a segunda;
-- física, IA, cronômetro, itens e finanças ficam congelados durante a leitura;
-- cada decisão é registrada com horário, escolha e consequência;
-- decisões já resolvidas não aparecem novamente;
-- o HUD mostra compromissos financeiros futuros quando existirem;
-- o relatório final mostra custos gerados pelas escolhas.
+Ao abrir o jogo, a física ainda não é criada. O jogador vê primeiro uma tela de corrida rápida com:
 
-### 1. Reserva Expressa
+- identidade do Turbo Real;
+- Avenida do Troco selecionada;
+- 3 voltas;
+- 8 pilotos;
+- 4 itens arcade;
+- 3 decisões financeiras;
+- gaveta compacta de controles;
+- botão de largada e atalho `Enter`.
 
-Aparece no começo da primeira volta.
+A seleção já é estruturada como uma superfície própria para receber novas pistas e modos nas fases futuras, embora nesta fase exista apenas a Avenida do Troco.
 
-**Opção 1:** separar R$20 do saldo e colocar na reserva.
+### Sessão reiniciável
 
-**Opção 2:** manter o dinheiro no saldo.
+`main.ts` passa a controlar a vida útil da corrida.
 
-A escolha não cria nem destrói dinheiro. Ela muda a função daquele valor: liquidez imediata ou proteção para o imprevisto de R$45 já existente no sistema financeiro.
+Cada largada cria do zero:
 
-### 2. Crédito Turbo
+- `GameState`;
+- mundo Rapier;
+- IA;
+- `RaceController`;
+- `ItemController`;
+- `FinanceController`;
+- `DecisionController`;
+- HUD;
+- renderer Three.js.
 
-Aparece mais adiante na primeira volta.
+Ao reiniciar ou voltar ao menu, a sessão anterior é descartada e seus recursos são liberados. Não existe `location.reload()` como parte do fluxo normal.
 
-**Aceitar:** recebe 7 segundos de turbo, paga R$30 imediatamente e cria duas cobranças futuras de R$12 nos fechamentos das próximas voltas.
+### Pausa real
 
-**Recusar:** não recebe turbo e não cria compromisso financeiro.
+`Esc` alterna a pausa durante a pilotagem.
 
-O custo total programado é R$54. Se o saldo não conseguir cobrir uma cobrança, a diferença vira dívida e pode receber os juros simulados da corrida.
+Enquanto a corrida está pausada:
 
-`Crédito Turbo` é um produto totalmente fictício de gameplay. Os valores não representam cartão, empréstimo, financiamento ou taxa real do mercado brasileiro.
+- física não avança;
+- IAs não avançam;
+- cronômetro não avança;
+- itens e hazards não avançam;
+- finanças não avançam;
+- animações de mundo ficam congeladas;
+- o menu mostra volta, posição e tempo atuais.
 
-### 3. Atalho Premium
+O menu de pausa oferece:
 
-Aparece na segunda volta.
+1. continuar;
+2. reiniciar corrida;
+3. voltar ao menu principal.
 
-**Pagar R$25:** recebe 4 segundos de turbo sem parcelas futuras.
+Decisões financeiras continuam sendo modais próprias e não competem com o menu de pausa.
 
-**Seguir na pista:** preserva o dinheiro e abre mão da vantagem de desempenho.
+### Resultado de corrida
 
-Essa escolha introduz custo de oportunidade sem declarar uma alternativa universalmente melhor: o valor do turbo depende da situação da corrida e da situação financeira do jogador.
+Quando o jogador cruza a chegada final, a simulação também congela. A antiga caixa simples de chegada foi substituída por uma tela de resultados com:
 
-## Compromissos futuros
+- colocação do jogador;
+- tempo total;
+- melhor volta;
+- classificação dos 8 pilotos;
+- saldo final;
+- reserva final;
+- dívida final;
+- patrimônio líquido de jogo;
+- custos gerados pelas decisões;
+- valor do imprevisto absorvido pela reserva;
+- histórico das escolhas financeiras;
+- botão para correr novamente;
+- botão para voltar ao menu.
 
-O estado financeiro agora aceita compromissos parcelados genéricos. Cada compromisso guarda:
+`Enter` inicia uma nova corrida a partir dos resultados.
 
-- descrição;
-- valor cobrado por volta;
-- número de cobranças restantes.
+### HUD reorganizado
 
-Ao completar uma volta, o `FinanceController` cobra compromissos pendentes antes de calcular os juros simulados da dívida. Quando não há saldo suficiente, o déficit vira dívida.
+Durante a pilotagem, o HUD volta a se concentrar apenas em informação que muda em tempo real:
 
-O HUD exibe `Futuro` enquanto ainda existir valor programado para cobrança.
+- posição, volta, setor e cronômetro;
+- saldo, reserva, dívida e compromissos futuros;
+- item atual;
+- drift/turbo;
+- velocidade;
+- avisos temporários;
+- cartão de decisão somente quando necessário.
 
-## Relatório e histórico
+A lista permanente de controles foi removida do playfield e movida para menu/pausa. A tela de chegada também saiu do HUD e virou uma superfície própria de resultados.
 
-`DecisionState` é serializável e registra:
+### Arquitetura de UI
 
-- decisão;
-- instante da corrida;
-- opção escolhida;
-- texto da consequência.
+```text
+src/
+├── ui/
+│   ├── createGameUi.ts   # menu, pausa e resultados
+│   └── createHud.ts      # telemetria da corrida
+├── render/app/GameApp.ts # simulação, pause/resume e render
+├── simulation/state.ts   # racing | paused | decision | finished
+└── menus.css             # superfícies de interface da Fase 9
+```
 
-O relatório final acrescenta:
+A divisão fica assim:
 
-- custo total provocado por decisões;
-- quantidade de decisões registradas;
-- saldo, reserva, dívida e patrimônio já existentes;
-- valor protegido pela reserva.
+1. `GameApp` é responsável pelo loop e por congelar/descongelar a sessão;
+2. `createGameUi` é responsável por navegação, botões e resultados;
+3. `createHud` exibe somente telemetria e decisões contextuais;
+4. `main.ts` cria e destrói sessões completas;
+5. física, corrida, itens e finanças continuam independentes do DOM.
 
 ## Controles
 
@@ -83,49 +121,14 @@ O relatório final acrescenta:
 | --- | --- |
 | Acelerar | `W` ou `↑` |
 | Frear / Ré | `S` ou `↓` |
-| Virar à esquerda | `A` ou `←` |
-| Virar à direita | `D` ou `→` |
+| Virar | `A/D` ou `←/→` |
 | Drift | `Shift` |
 | Usar item | `Espaço` |
 | Guardar R$10 na reserva | `E` |
 | Retirar R$10 da reserva | `Q` |
-| Opção financeira 1 | `1` |
-| Opção financeira 2 | `2` |
-
-## Arquitetura
-
-```text
-src/
-├── input/
-├── physics/
-├── render/
-├── simulation/
-│   ├── decisions/
-│   │   ├── DecisionController.ts
-│   │   └── types.ts
-│   ├── finance/
-│   │   ├── FinanceController.ts
-│   │   └── types.ts
-│   ├── items/
-│   ├── AIController.ts
-│   ├── RaceController.ts
-│   └── state.ts
-├── track/
-├── ui/createHud.ts
-├── decisions.css
-├── finance.css
-├── items.css
-└── race.css
-```
-
-A separação continua intencional:
-
-1. `DecisionController` decide quando um cartão aparece e traduz a escolha em efeitos explícitos;
-2. `FinanceController` movimenta dinheiro, cria compromissos e cobra parcelas;
-3. `RaceController` fornece apenas progresso validado;
-4. Rapier continua responsável por movimento e colisões;
-5. Three.js não contém regras de decisão;
-6. o HUD apenas representa o estado.
+| Escolhas financeiras | `1` / `2` |
+| Pausar / continuar | `Esc` |
+| Largar / correr novamente | `Enter` |
 
 ## Executar
 
@@ -141,12 +144,28 @@ npm run typecheck
 npm run build
 ```
 
-## Limite intencional da Fase 8
+## Conteúdo acumulado até a Fase 9
 
-Ainda não entram Pix, golpes, inflação, investimento, diversificação ou sistema completo de carreira. Também não há julgamento moral automático das escolhas: o jogo mostra custo e efeito para o jogador comparar.
+O protótipo já possui:
+
+- circuito fechado Avenida do Troco;
+- física arcade Rapier;
+- drift e mini-turbo;
+- 7 rivais de IA;
+- checkpoints, 3 voltas e classificação;
+- caixas e quatro itens arcade;
+- saldo, reserva, dívida, custos, juros simulados e premiação;
+- Reserva Expressa, Crédito Turbo e Atalho Premium;
+- menu inicial, pausa, reinício, saída para menu e resultados.
+
+Os valores financeiros são fictícios de gameplay e não representam taxas, produtos ou recomendações financeiras reais.
+
+## Limite intencional da Fase 9
+
+Ainda não entram áudio completo, partículas/polimento final, suporte dedicado a gamepad/mobile, novos circuitos, carreira/campeonato ou multiplayer. O menu já deixa a arquitetura pronta para essas expansões, sem fingir que conteúdo ainda inexistente está disponível.
 
 ## Próxima fase
 
-**Fase 9: HUD e menus completos.**
+**Fase 10: som, partículas e polimento.**
 
-O próximo passo do roadmap é consolidar a experiência em menus de início, pausa, seleção de corrida e resultados, além de melhorar a apresentação das informações financeiras e de corrida sem cobrir o playfield.
+O próximo passo é dar peso audiovisual ao que já existe: motor, drift, impactos, itens, feedback de UI, partículas de velocidade e acabamento de câmera/iluminação, preservando desempenho e legibilidade.
