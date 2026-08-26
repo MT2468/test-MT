@@ -60,6 +60,16 @@ export class KeyboardInput {
     return null;
   }
 
+  consumePause(): boolean {
+    if (!this.triggered.has('pause')) return false;
+    this.triggered.delete('pause');
+    return true;
+  }
+
+  clearTransientActions(): void {
+    this.triggered.clear();
+  }
+
   dispose(): void {
     window.removeEventListener('keydown', this.onKeyDown);
     window.removeEventListener('keyup', this.onKeyUp);

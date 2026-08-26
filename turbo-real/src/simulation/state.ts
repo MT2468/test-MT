@@ -12,6 +12,8 @@ import { createInitialRaceState, type RaceState } from './RaceController';
 import type { TrackDefinition } from '../track/firstTrack';
 import type { VehicleState } from './vehicle';
 
+export type GamePhase = 'racing' | 'paused' | 'decision' | 'finished';
+
 export interface RivalState {
   readonly id: string;
   readonly name: string;
@@ -22,7 +24,7 @@ export interface RivalState {
 }
 
 export interface GameState {
-  phase: 'racing' | 'decision' | 'finished';
+  phase: GamePhase;
   finance: FinancialState;
   decisions: DecisionState;
   race: RaceState;
