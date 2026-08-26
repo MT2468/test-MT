@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#07120c" />
+    <meta name="description" content="Launcher de teste do Turbo Real até a Fase 8." />
+    <title>Turbo Real | Teste Fase 8</title>
+    <link rel="stylesheet" href="../turbo-real/src/styles.css" />
+    <link rel="stylesheet" href="../turbo-real/src/race.css" />
+    <link rel="stylesheet" href="../turbo-real/src/items.css" />
+    <link rel="stylesheet" href="../turbo-real/src/finance.css" />
+    <link rel="stylesheet" href="../turbo-real/src/decisions.css" />
+    <style>
+      .test-loader {
+        position: fixed;
+        inset: 0;
+        z-index: 999;
+        display: grid;
+        place-items: center;
+        padding: 24px;
+        background: #07120c;
+        color: #effff4;
+        font: 700 14px/1.5 ui-sans-serif, system-ui, sans-serif;
+        text-align: center;
+      }
+      .test-loader div { max-width: 520px; }
+      .test-loader strong { display: block; margin-bottom: 8px; color: #f7c948; font-size: 20px; }
+      .test-loader small { display: block; margin-top: 10px; color: rgba(239,255,244,.65); font-weight: 500; }
+      .test-loader.is-error strong { color: #ffb39f; }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/typescript@5.8.3/lib/typescript.js"></script>
+  </head>
+  <body>
+    <div id="app" aria-label="Área de jogo 3D"></div>
+    <div class="test-loader" id="test-loader" role="status" aria-live="polite">
+      <div>
+        <strong>TURBO REAL</strong>
+        Preparando a build de teste da Fase 8…
+        <small>Na primeira abertura o navegador compila os módulos TypeScript do jogo.</small>
+      </div>
+    </div>
+
+    <script type="module">
+      const loader = document.querySelector('#test-loader');
+      const sourceRoot = new URL('../turbo-real/src/', window.location.href);
+      const modulePromises = new Map();
+      const externalModules = new Map([
+        ['three', 'https://esm.sh/three@0.185.1'],
+        ['@dimforge/rapier3d-compat', 'https://esm.sh/@dimforge/rapier3d-compat@0.20.0'],
+      ]);
+
+      function setStatus(text) {
+        if (!loader) return;
+        const div = loader.querySelector('div');
+        if (div) div.childNodes[2].textContent = ` ${text} `;
+      }
+
+      function resolveSource(specifier, importerUrl) {
+        const url = new URL(specifier, importerUrl);
+        if (!/\.[a-z0-9]+$/i.test(url.pathname)) url.pathname += '.ts';
+        return url;
+      }
+
+      function collectImports(source) {
+        const specs = [];
+        const regex = /(?:import|export)\s+(?:[^'";]+?\s+from\s+)?['"]([^'"]+)['"]/g;
+        for (const match of source.matchAll(regex)) specs.push(match[1]);
+        return specs;
+      }
+
+      function stripCssImports(source) {
+        return source.replace(/^\s*import\s+['"][^'"]+\.css['"];?\s*$/gm, '');
+      }
+
+      async function compileModule(sourceUrl) {
+        const key = sourceUrl.href;
+        const existing = modulePromises.get(key);
+        if (existing) return existing;
+
+        const promise = (async () => {
+          setStatus(`Carregando ${sourceUrl.pathname.split('/').pop()}…`);
+          const response = await fetch(sourceUrl, { cache: 'no-cache' });
+          if (!response.ok) throw new Error(`Não foi possível carregar ${sourceUrl.pathname} (${response.status}).`);
+          const original = await response.text();
+          const source = stripCssImports(original);
+          const imports = collectImports(source).filter((specifier) => !specifier.endsWith('.css'));
+          const replacements = new Map();
+
+          for (const specifier of imports) {
+            if (externalModules.has(specifier)) {
+              replacements.set(specifier, externalModules.get(specifier));
+              continue;
+            }
+            if (!specifier.startsWith('.')) continue;
+            const dependencyUrl = resolveSource(specifier, sourceUrl);
+            replacements.set(specifier, await compileModule(dependencyUrl));
+          }
+
+          if (!window.ts) throw new Error('O compilador TypeScript não foi carregado pelo navegador.');
+          const output = window.ts.transpileModule(source, {
+            compilerOptions: {
+              target: window.ts.ScriptTarget.ES2022,
+              module: window.ts.ModuleKind.ES2022,
+              moduleResolution: window.ts.ModuleResolutionKind.Bundler,
+              useDefineForClassFields: true,
+              esModuleInterop: true,
+            },
+            fileName: sourceUrl.pathname,
+          }).outputText;
+
+          const rewritten = output.replace(
+            /((?:from\s+|import\s*)['"])([^'"]+)(['"])/g,
+            (full, prefix, specifier, suffix) => {
+              const replacement = replacements.get(specifier) ?? externalModules.get(specifier);
+              return replacement ? `${prefix}${replacement}${suffix}` : full;
+            },
+          );
+
+          return URL.createObjectURL(new Blob([rewritten], { type: 'text/javascript' }));
+        })();
+
+        modulePromises.set(key, promise);
+        return promise;
+      }
+
+      try {
+        const entryUrl = new URL('main.ts', sourceRoot);
+        const entryBlob = await compileModule(entryUrl);
+        setStatus('Iniciando corrida…');
+        await import(entryBlob);
+        loader?.remove();
+      } catch (error) {
+        console.error('Falha no launcher de teste do Turbo Real:', error);
+        if (loader) {
+          loader.classList.add('is-error');
+          loader.innerHTML = `<div><strong>Falha ao abrir Turbo Real</strong>${String(error instanceof Error ? error.message : error)}<small>Abra o console do navegador para detalhes.</small></div>`;
+        }
+      }
+    </script>
+  </body>
+</html>
