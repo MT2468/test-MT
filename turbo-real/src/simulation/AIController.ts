@@ -1,3 +1,4 @@
+import { analyzeTrackBalance } from '../diagnostics/trackAnalysis';
 import type { TrackDefinition, TrackSample } from '../track/firstTrack';
 import { rankRaceStandings, RaceController, type RaceState } from './RaceController';
 import type { RivalState } from './state';
@@ -49,11 +50,13 @@ export type RivalInputMap = Readonly<Record<string, DrivingInput>>;
 
 export class AIFleetController {
   private readonly raceControllers = new Map<string, RaceController>();
+  private readonly balance;
 
   constructor(
     private readonly track: TrackDefinition,
     private readonly rivals: readonly RivalState[],
   ) {
+    this.balance = analyzeTrackBalance(track);
     for (const rival of rivals) {
       this.raceControllers.set(rival.id, new RaceController(track, rival.race, rival.vehicle));
     }
@@ -73,7 +76,8 @@ export class AIFleetController {
       const nearestIndex = nearestSampleIndex(this.track, vehicle.x, vehicle.z);
       const nearest = this.track.samples[nearestIndex];
       const speed = Math.max(0, vehicle.speed);
-      const lookahead = 5 + Math.round(clamp(speed / 4.5, 0, 5));
+      const baseLookahead = 5 + Math.round(clamp(speed / 4.5, 0, 5));
+      const lookahead = Math.max(4, Math.round(baseLookahead * this.balance.aiLookaheadScale));
       const severity = curveSeverity(this.track, nearestIndex, lookahead + 3);
 
       let laneTarget = rival.profile.laneBias;
@@ -108,13 +112,13 @@ export class AIFleetController {
       const steer = clamp(headingError / (0.5 + severity * 0.12), -1, 1);
 
       const curvePenalty = severity * (0.36 + rival.profile.cornerDiscipline * 0.2);
-      let targetSpeed = VEHICLE_TUNING.maxForwardSpeed * rival.profile.pace * (1 - curvePenalty);
+      let targetSpeed = VEHICLE_TUNING.maxForwardSpeed * rival.profile.pace * this.balance.aiPaceScale * (1 - curvePenalty);
       targetSpeed *= trafficFactor;
       if (farFromCenter) targetSpeed = Math.min(targetSpeed, 11.5);
       targetSpeed = Math.max(8.5, targetSpeed);
 
       const throttle = speed < targetSpeed - 0.6 ? 1 : speed > targetSpeed + 1.1 ? -1 : 0;
-      const driftThreshold = 0.31 - rival.profile.driftSkill * 0.13;
+      const driftThreshold = 0.31 - rival.profile.driftSkill * 0.13 - this.balance.technicality * 0.025;
       const drift =
         severity > driftThreshold &&
         rival.profile.driftSkill > 0.45 &&
