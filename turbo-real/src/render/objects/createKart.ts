@@ -9,17 +9,31 @@ export interface KartMotionVisualState {
   deltaSeconds: number;
 }
 
+export interface KartAppearance {
+  readonly name?: string;
+  readonly bodyColor?: THREE.ColorRepresentation;
+  readonly accentColor?: THREE.ColorRepresentation;
+}
+
 export interface KartVisual {
   readonly group: THREE.Group;
   updateMotion(state: KartMotionVisualState): void;
 }
 
-export function createKart(): KartVisual {
+export function createKart(appearance: KartAppearance = {}): KartVisual {
   const kart = new THREE.Group();
-  kart.name = 'player-kart';
+  kart.name = appearance.name ?? 'player-kart';
 
-  const bodyMaterial = new THREE.MeshStandardMaterial({ color: 0xf7c948, roughness: 0.5, metalness: 0.08 });
-  const accentMaterial = new THREE.MeshStandardMaterial({ color: 0x1ba65a, roughness: 0.45, metalness: 0.12 });
+  const bodyMaterial = new THREE.MeshStandardMaterial({
+    color: appearance.bodyColor ?? 0xf7c948,
+    roughness: 0.5,
+    metalness: 0.08,
+  });
+  const accentMaterial = new THREE.MeshStandardMaterial({
+    color: appearance.accentColor ?? 0x1ba65a,
+    roughness: 0.45,
+    metalness: 0.12,
+  });
   const wheelMaterial = new THREE.MeshStandardMaterial({ color: 0x111318, roughness: 0.88 });
   const sparkMaterial = new THREE.MeshStandardMaterial({
     color: 0xffb22e,
@@ -114,7 +128,11 @@ export function createKart(): KartVisual {
       for (const wheel of wheels) wheel.rotation.x = wheelSpin;
 
       const slide = Math.min(Math.abs(state.lateralSpeed) / 8, 1);
-      kart.rotation.z = THREE.MathUtils.lerp(kart.rotation.z, -state.steering * (state.drifting ? 0.09 : 0.035), 0.15);
+      kart.rotation.z = THREE.MathUtils.lerp(
+        kart.rotation.z,
+        -state.steering * (state.drifting ? 0.09 : 0.035),
+        0.15,
+      );
 
       for (const [index, spark] of sparks.entries()) {
         spark.visible = state.drifting && slide > 0.08;

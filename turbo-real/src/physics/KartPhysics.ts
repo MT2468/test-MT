@@ -1,9 +1,16 @@
 import RAPIER from '@dimforge/rapier3d-compat';
+import type { RivalState } from '../simulation/state';
 import { moveTowards, VEHICLE_TUNING, type DrivingInput, type VehicleState } from '../simulation/vehicle';
 import type { TrackDefinition } from '../track/firstTrack';
+import type { RivalInputMap } from '../simulation/AIController';
 
 type RapierWorld = InstanceType<typeof RAPIER.World>;
 type RapierRigidBody = ReturnType<RapierWorld['createRigidBody']>;
+
+interface VehicleBodyEntry {
+  readonly body: RapierRigidBody;
+  readonly spawn: Readonly<{ x: number; z: number; heading: number }>;
+}
 
 const FIXED_TIMESTEP = 1 / 60;
 const BODY_CENTER_HEIGHT = 0.42;
@@ -28,52 +35,82 @@ function quaternionYaw(rotation: { x: number; y: number; z: number; w: number })
   return Math.atan2(sinYaw, cosYaw);
 }
 
+function horizontalSpeed(body: RapierRigidBody): number {
+  const velocity = body.linvel();
+  return Math.hypot(velocity.x, velocity.z);
+}
+
+function createVehicleBody(world: RapierWorld, state: VehicleState): RapierRigidBody {
+  const bodyDescription = RAPIER.RigidBodyDesc.dynamic()
+    .setTranslation(state.x, BODY_CENTER_HEIGHT, state.z)
+    .setRotation(yawQuaternion(state.heading))
+    .setLinearDamping(0.18)
+    .setAngularDamping(5.5)
+    .setCanSleep(false)
+    .setCcdEnabled(true)
+    .enabledRotations(false, true, false);
+
+  const body = world.createRigidBody(bodyDescription);
+  const collider = RAPIER.ColliderDesc.cuboid(1.02, 0.4, 1.58)
+    .setDensity(0.9)
+    .setFriction(0.12)
+    .setRestitution(0.08);
+  world.createCollider(collider, body);
+  return body;
+}
+
 export class KartPhysics {
   private accumulator = 0;
+  private readonly rivalBodies = new Map<string, VehicleBodyEntry>();
 
   private constructor(
     private readonly world: RapierWorld,
-    private readonly body: RapierRigidBody,
-    private readonly spawn: Readonly<{ x: number; z: number; heading: number }>,
+    private readonly player: VehicleBodyEntry,
   ) {}
 
-  static async create(initialState: VehicleState, track: TrackDefinition): Promise<KartPhysics> {
+  static async create(
+    initialState: VehicleState,
+    track: TrackDefinition,
+    rivals: readonly RivalState[] = [],
+  ): Promise<KartPhysics> {
     await ensureRapierReady();
 
     const world = new RAPIER.World({ x: 0, y: -16, z: 0 });
     world.timestep = FIXED_TIMESTEP;
 
-    const bodyDescription = RAPIER.RigidBodyDesc.dynamic()
-      .setTranslation(initialState.x, BODY_CENTER_HEIGHT, initialState.z)
-      .setRotation(yawQuaternion(initialState.heading))
-      .setLinearDamping(0.18)
-      .setAngularDamping(5.5)
-      .setCanSleep(false)
-      .setCcdEnabled(true)
-      .enabledRotations(false, true, false);
-
-    const body = world.createRigidBody(bodyDescription);
-    const kartCollider = RAPIER.ColliderDesc.cuboid(1.02, 0.4, 1.58)
-      .setDensity(0.9)
-      .setFriction(0.12)
-      .setRestitution(0.08);
-    world.createCollider(kartCollider, body);
-
-    const physics = new KartPhysics(world, body, {
-      x: initialState.x,
-      z: initialState.z,
-      heading: initialState.heading,
+    const playerBody = createVehicleBody(world, initialState);
+    const physics = new KartPhysics(world, {
+      body: playerBody,
+      spawn: { x: initialState.x, z: initialState.z, heading: initialState.heading },
     });
+
+    for (const rival of rivals) {
+      physics.rivalBodies.set(rival.id, {
+        body: createVehicleBody(world, rival.vehicle),
+        spawn: {
+          x: rival.vehicle.x,
+          z: rival.vehicle.z,
+          heading: rival.vehicle.heading,
+        },
+      });
+    }
+
     physics.createTrackColliders(track);
     return physics;
   }
 
-  advance(input: DrivingInput, frameDeltaSeconds: number, state: VehicleState): void {
+  advance(
+    playerInput: DrivingInput,
+    rivalInputs: RivalInputMap,
+    frameDeltaSeconds: number,
+    playerState: VehicleState,
+    rivals: readonly RivalState[],
+  ): void {
     this.accumulator += Math.min(Math.max(frameDeltaSeconds, 0), MAX_FRAME_DELTA);
 
     let steps = 0;
     while (this.accumulator >= FIXED_TIMESTEP && steps < MAX_STEPS_PER_FRAME) {
-      this.fixedStep(input, state, FIXED_TIMESTEP);
+      this.fixedStep(playerInput, rivalInputs, playerState, rivals, FIXED_TIMESTEP);
       this.accumulator -= FIXED_TIMESTEP;
       steps += 1;
     }
@@ -85,8 +122,40 @@ export class KartPhysics {
     this.world.free();
   }
 
-  private fixedStep(input: DrivingInput, state: VehicleState, dt: number): void {
-    const velocity = this.body.linvel();
+  private fixedStep(
+    playerInput: DrivingInput,
+    rivalInputs: RivalInputMap,
+    playerState: VehicleState,
+    rivals: readonly RivalState[],
+    dt: number,
+  ): void {
+    const speedBefore = new Map<RapierRigidBody, number>();
+    speedBefore.set(this.player.body, horizontalSpeed(this.player.body));
+    this.applyControl(this.player.body, playerState, playerInput, dt);
+
+    for (const rival of rivals) {
+      const entry = this.rivalBodies.get(rival.id);
+      if (!entry) continue;
+      speedBefore.set(entry.body, horizontalSpeed(entry.body));
+      this.applyControl(entry.body, rival.vehicle, rivalInputs[rival.id] ?? { throttle: 0, steer: 0, drift: false }, dt);
+    }
+
+    this.world.timestep = dt;
+    this.world.step();
+
+    this.syncVehicle(this.player.body, playerState, speedBefore.get(this.player.body) ?? 0, dt);
+    if (this.player.body.translation().y < -3) this.reset(this.player, playerState);
+
+    for (const rival of rivals) {
+      const entry = this.rivalBodies.get(rival.id);
+      if (!entry) continue;
+      this.syncVehicle(entry.body, rival.vehicle, speedBefore.get(entry.body) ?? 0, dt);
+      if (entry.body.translation().y < -3) this.reset(entry, rival.vehicle);
+    }
+  }
+
+  private applyControl(body: RapierRigidBody, state: VehicleState, input: DrivingInput, dt: number): void {
+    const velocity = body.linvel();
     const heading = state.heading;
     const forwardX = Math.sin(heading);
     const forwardZ = -Math.cos(heading);
@@ -133,8 +202,8 @@ export class KartPhysics {
     const driftTurn = state.drifting ? VEHICLE_TUNING.driftTurnMultiplier : 1;
     const yawVelocity = state.steering * VEHICLE_TUNING.turnRate * steeringAuthority * direction * driftTurn;
 
-    this.body.setAngvel({ x: 0, y: yawVelocity, z: 0 }, true);
-    this.body.setLinvel(
+    body.setAngvel({ x: 0, y: yawVelocity, z: 0 }, true);
+    body.setLinvel(
       {
         x: forwardX * forwardSpeed + rightX * lateralSpeed,
         y: velocity.y,
@@ -142,30 +211,11 @@ export class KartPhysics {
       },
       true,
     );
-
-    const speedBeforeStep = Math.hypot(velocity.x, velocity.z);
-    const previousX = state.x;
-    const previousZ = state.z;
-
-    this.world.timestep = dt;
-    this.world.step();
-
-    const speedAfterStepVector = this.body.linvel();
-    const speedAfterStep = Math.hypot(speedAfterStepVector.x, speedAfterStepVector.z);
-    const collisionDrop = Math.max(0, speedBeforeStep - speedAfterStep);
-    state.impactStrength = Math.max(state.impactStrength * Math.exp(-9 * dt), Math.min(collisionDrop / 8, 1));
-
-    this.syncState(state);
-    state.distanceTravelled += Math.hypot(state.x - previousX, state.z - previousZ);
-
-    if (this.body.translation().y < -3) this.reset(state);
   }
 
   private updateDriftAndBoost(input: DrivingInput, state: VehicleState, forwardSpeed: number, dt: number): void {
     state.boostRemaining = Math.max(0, state.boostRemaining - dt);
-
-    const wantsDrift =
-      input.drift && Math.abs(input.steer) > 0 && forwardSpeed > VEHICLE_TUNING.minimumDriftSpeed;
+    const wantsDrift = input.drift && Math.abs(input.steer) > 0 && forwardSpeed > VEHICLE_TUNING.minimumDriftSpeed;
 
     if (wantsDrift) {
       state.drifting = true;
@@ -191,13 +241,18 @@ export class KartPhysics {
     if (!input.drift || forwardSpeed <= VEHICLE_TUNING.minimumDriftSpeed) state.driftCharge = 0;
   }
 
-  private syncState(state: VehicleState): void {
-    const translation = this.body.translation();
-    const velocity = this.body.linvel();
+  private syncVehicle(body: RapierRigidBody, state: VehicleState, speedBeforeStep: number, dt: number): void {
+    const previousX = state.x;
+    const previousZ = state.z;
+    const translation = body.translation();
+    const velocity = body.linvel();
+    const speedAfterStep = Math.hypot(velocity.x, velocity.z);
+    const collisionDrop = Math.max(0, speedBeforeStep - speedAfterStep);
+
     state.x = translation.x;
     state.y = translation.y - BODY_CENTER_HEIGHT;
     state.z = translation.z;
-    state.heading = quaternionYaw(this.body.rotation());
+    state.heading = quaternionYaw(body.rotation());
 
     const forwardX = Math.sin(state.heading);
     const forwardZ = -Math.cos(state.heading);
@@ -205,17 +260,19 @@ export class KartPhysics {
     const rightZ = Math.sin(state.heading);
     state.speed = velocity.x * forwardX + velocity.z * forwardZ;
     state.lateralSpeed = velocity.x * rightX + velocity.z * rightZ;
+    state.impactStrength = Math.max(state.impactStrength * Math.exp(-9 * dt), Math.min(collisionDrop / 8, 1));
+    state.distanceTravelled += Math.hypot(state.x - previousX, state.z - previousZ);
   }
 
-  private reset(state: VehicleState): void {
-    this.body.setTranslation({ x: this.spawn.x, y: BODY_CENTER_HEIGHT, z: this.spawn.z }, true);
-    this.body.setRotation(yawQuaternion(this.spawn.heading), true);
-    this.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
-    this.body.setAngvel({ x: 0, y: 0, z: 0 }, true);
-    state.x = this.spawn.x;
+  private reset(entry: VehicleBodyEntry, state: VehicleState): void {
+    entry.body.setTranslation({ x: entry.spawn.x, y: BODY_CENTER_HEIGHT, z: entry.spawn.z }, true);
+    entry.body.setRotation(yawQuaternion(entry.spawn.heading), true);
+    entry.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
+    entry.body.setAngvel({ x: 0, y: 0, z: 0 }, true);
+    state.x = entry.spawn.x;
     state.y = 0;
-    state.z = this.spawn.z;
-    state.heading = this.spawn.heading;
+    state.z = entry.spawn.z;
+    state.heading = entry.spawn.heading;
     state.speed = 0;
     state.lateralSpeed = 0;
     state.steering = 0;
@@ -246,13 +303,7 @@ export class KartPhysics {
     }
   }
 
-  private addBarrierCollider(
-    staticBody: RapierRigidBody,
-    ax: number,
-    az: number,
-    bx: number,
-    bz: number,
-  ): void {
+  private addBarrierCollider(staticBody: RapierRigidBody, ax: number, az: number, bx: number, bz: number): void {
     const dx = bx - ax;
     const dz = bz - az;
     const length = Math.hypot(dx, dz);
