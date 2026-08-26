@@ -5,6 +5,8 @@ export type GameAction =
   | 'steer-right'
   | 'drift'
   | 'use-item'
+  | 'save-reserve'
+  | 'withdraw-reserve'
   | 'pause';
 
 export const keyboardBindings: Readonly<Record<string, GameAction>> = Object.freeze({
@@ -19,5 +21,7 @@ export const keyboardBindings: Readonly<Record<string, GameAction>> = Object.fre
   ShiftLeft: 'drift',
   ShiftRight: 'drift',
   Space: 'use-item',
+  KeyE: 'save-reserve',
+  KeyQ: 'withdraw-reserve',
   Escape: 'pause',
 });
