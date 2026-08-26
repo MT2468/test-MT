@@ -1,7 +1,8 @@
-import { keyboardBindings, type GameAction } from './actions';
+import { mobileRuntime } from '../platform/MobileRuntime';
 import type { DecisionChoice } from '../simulation/decisions/types';
 import type { FinanceInputAction } from '../simulation/finance/FinanceController';
 import type { DrivingInput } from '../simulation/vehicle';
+import { keyboardBindings, type GameAction } from './actions';
 
 export type InputPhase = 'racing' | 'paused' | 'decision' | 'finished';
 
@@ -34,12 +35,15 @@ export class PlayerInput {
   private readonly triggered = new Set<GameAction>();
   private readonly touchRoot: HTMLElement;
   private readonly touchCapable: boolean;
+  private readonly touchWheel: HTMLElement | null;
+  private readonly touchWheelKnob: HTMLElement | null;
   private gamepadIndex: number | null = null;
   private previousGamepadButtons: boolean[] = [];
   private gamepadSteer = 0;
   private gamepadThrottle = 0;
   private gamepadBrake = 0;
   private gamepadDrift = false;
+  private touchSteer = 0;
   private phase: InputPhase = 'racing';
   private decisionActive = false;
 
@@ -60,9 +64,10 @@ export class PlayerInput {
         <button type="button" data-touch-trigger="save-reserve" aria-label="Guardar dez reais na reserva"><span>R$+</span><small>GUARDAR</small></button>
       </div>
 
-      <div class="touch-steering" aria-label="Direção">
-        <button type="button" data-touch-hold="steer-left" aria-label="Virar para esquerda">‹</button>
-        <button type="button" data-touch-hold="steer-right" aria-label="Virar para direita">›</button>
+      <div class="touch-steering" data-touch-wheel role="slider" aria-label="Direção analógica" aria-valuemin="-100" aria-valuemax="100" aria-valuenow="0">
+        <span class="touch-wheel__axis" aria-hidden="true"></span>
+        <span class="touch-wheel__knob" aria-hidden="true"></span>
+        <small class="touch-wheel__label">DIREÇÃO</small>
       </div>
 
       <div class="touch-actions" aria-label="Ações do kart">
@@ -80,10 +85,13 @@ export class PlayerInput {
         <button type="button" data-touch-trigger="decision-2"><strong>2</strong><span>OPÇÃO 2</span></button>
       </div>
 
-      <div class="touch-orientation" aria-hidden="true">↻ Melhor em tela horizontal</div>
+      <div class="touch-orientation" aria-hidden="true">↻ Paisagem oferece mais visão da pista</div>
     `;
     host.append(this.touchRoot);
+    this.touchWheel = this.touchRoot.querySelector<HTMLElement>('[data-touch-wheel]');
+    this.touchWheelKnob = this.touchRoot.querySelector<HTMLElement>('.touch-wheel__knob');
     this.bindTouchButtons();
+    this.bindTouchWheel();
 
     window.addEventListener('keydown', this.onKeyDown, { passive: false });
     window.addEventListener('keyup', this.onKeyUp, { passive: false });
@@ -96,6 +104,7 @@ export class PlayerInput {
     this.decisionActive = decisionActive;
     this.touchRoot.dataset.phase = phase;
     this.touchRoot.dataset.decision = decisionActive ? 'true' : 'false';
+    if (phase !== 'racing' || decisionActive) this.resetTouchDriving();
     this.pollGamepad();
   }
 
@@ -106,7 +115,8 @@ export class PlayerInput {
     const steeringRight = this.keyboardPressed.has('steer-right') || this.touchPressed.has('steer-right');
 
     const digitalSteer = steeringLeft === steeringRight ? 0 : steeringLeft ? -1 : 1;
-    const steer = Math.abs(this.gamepadSteer) > 0.01 ? this.gamepadSteer : digitalSteer;
+    const touchOrDigitalSteer = Math.abs(this.touchSteer) > 0.01 ? this.touchSteer : digitalSteer;
+    const steer = Math.abs(this.gamepadSteer) > 0.01 ? this.gamepadSteer : touchOrDigitalSteer;
     const forward = Math.max(accelerating ? 1 : 0, this.gamepadThrottle);
     const reverse = Math.max(braking ? 1 : 0, this.gamepadBrake);
 
@@ -140,6 +150,7 @@ export class PlayerInput {
   clearTransientActions(): void {
     this.triggered.clear();
     this.touchPressed.clear();
+    this.resetTouchDriving();
   }
 
   dispose(): void {
@@ -150,6 +161,7 @@ export class PlayerInput {
     this.keyboardPressed.clear();
     this.touchPressed.clear();
     this.triggered.clear();
+    this.resetTouchDriving();
     this.touchRoot.remove();
     if (this.touchCapable) document.body.classList.remove('tr-touch-capable');
   }
@@ -172,6 +184,7 @@ export class PlayerInput {
         button.setPointerCapture(event.pointerId);
         this.touchPressed.add(action);
         button.classList.add('is-pressed');
+        mobileRuntime.vibrate('tap');
       });
       button.addEventListener('pointerup', release);
       button.addEventListener('pointercancel', release);
@@ -184,11 +197,57 @@ export class PlayerInput {
         event.preventDefault();
         this.triggered.add(action);
         button.classList.add('is-pressed');
+        mobileRuntime.vibrate(action === 'use-item' || action === 'decision-1' || action === 'decision-2' ? 'confirm' : 'tap');
         window.setTimeout(() => button.classList.remove('is-pressed'), 90);
       });
     }
 
     this.touchRoot.addEventListener('contextmenu', (event) => event.preventDefault());
+  }
+
+  private bindTouchWheel(): void {
+    const wheel = this.touchWheel;
+    if (wheel === null) return;
+
+    const updateFromPointer = (event: PointerEvent): void => {
+      const rect = wheel.getBoundingClientRect();
+      const center = rect.left + rect.width / 2;
+      const usableRadius = Math.max(1, rect.width * 0.38);
+      this.setTouchSteer((event.clientX - center) / usableRadius);
+    };
+
+    const release = (): void => this.setTouchSteer(0);
+
+    wheel.addEventListener('pointerdown', (event) => {
+      event.preventDefault();
+      wheel.setPointerCapture(event.pointerId);
+      updateFromPointer(event);
+      mobileRuntime.vibrate('tap');
+    });
+    wheel.addEventListener('pointermove', (event) => {
+      if (!wheel.hasPointerCapture(event.pointerId)) return;
+      event.preventDefault();
+      updateFromPointer(event);
+    });
+    wheel.addEventListener('pointerup', release);
+    wheel.addEventListener('pointercancel', release);
+    wheel.addEventListener('lostpointercapture', release);
+  }
+
+  private setTouchSteer(value: number): void {
+    this.touchSteer = Math.max(-1, Math.min(1, value));
+    this.touchWheel?.setAttribute('aria-valuenow', String(Math.round(this.touchSteer * 100)));
+    if (this.touchWheelKnob) {
+      const offset = this.touchSteer * 38;
+      this.touchWheelKnob.style.transform = `translate(calc(-50% + ${offset}px), -50%)`;
+    }
+  }
+
+  private resetTouchDriving(): void {
+    this.touchPressed.delete('accelerate');
+    this.touchPressed.delete('brake');
+    this.touchPressed.delete('drift');
+    this.setTouchSteer(0);
   }
 
   private pollGamepad(): void {
@@ -270,6 +329,7 @@ export class PlayerInput {
     this.keyboardPressed.clear();
     this.touchPressed.clear();
     this.triggered.clear();
+    this.resetTouchDriving();
   };
 
   private readonly onVisibilityChange = (): void => {

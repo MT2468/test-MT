@@ -4,6 +4,7 @@ import { createQaPanel, type QaPanelController } from '../../diagnostics/createQ
 import { PlaytestTelemetry } from '../../diagnostics/PlaytestTelemetry';
 import { PlayerInput } from '../../input/PlayerInput';
 import { KartPhysics } from '../../physics/KartPhysics';
+import { mobileRuntime } from '../../platform/MobileRuntime';
 import { AIFleetController } from '../../simulation/AIController';
 import { DecisionController } from '../../simulation/decisions/DecisionController';
 import { FinanceController } from '../../simulation/finance/FinanceController';
@@ -23,17 +24,23 @@ import { createTrackScene } from '../track/createTrackScene';
 export class GameApp {
   private readonly scene = new THREE.Scene();
   private readonly camera = new THREE.PerspectiveCamera(56, 1, 0.1, 520);
-  private readonly renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+  private readonly renderer = new THREE.WebGLRenderer({
+    antialias: mobileRuntime.profile.quality !== 'economy',
+    powerPreference: 'high-performance',
+    alpha: false,
+    stencil: false,
+  });
   private readonly kart = createKart();
   private readonly rivalKarts = new Map<string, KartVisual>();
   private readonly input = new PlayerInput(document.body);
-  private readonly chaseCamera = new ChaseCamera(this.camera);
+  private readonly chaseCamera = new ChaseCamera(this.camera, mobileRuntime.profile.mobile);
   private readonly effects = new RaceEffects();
   private readonly itemScene: ItemSceneController;
   private readonly telemetry: PlaytestTelemetry;
   private readonly qaPanel: QaPanelController;
   private readonly resizeObserver: ResizeObserver;
   private previousTime = performance.now();
+  private previousImpactStrength = 0;
 
   constructor(
     private readonly container: HTMLElement,
@@ -48,15 +55,16 @@ export class GameApp {
     track: TrackDefinition,
     private readonly onStateUpdate: (state: GameState) => void = () => {},
   ) {
+    const profile = mobileRuntime.profile;
     this.scene.background = new THREE.Color(track.visuals.skyColor);
-    this.scene.fog = new THREE.Fog(track.visuals.fogColor, 118, 350);
+    this.scene.fog = new THREE.Fog(track.visuals.fogColor, profile.quality === 'economy' ? 95 : 118, profile.quality === 'economy' ? 285 : 350);
 
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = track.visuals.exposure;
-    this.renderer.shadowMap.enabled = true;
+    this.renderer.shadowMap.enabled = profile.shadowsEnabled;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, profile.maxPixelRatio));
     this.renderer.domElement.addEventListener('webglcontextlost', this.onContextLost);
     this.container.append(this.renderer.domElement);
 
@@ -72,6 +80,7 @@ export class GameApp {
     }
 
     this.itemScene = createItemScene(this.state.itemWorld);
+    this.effects.group.visible = profile.effectsEnabled;
     this.effects.reset(this.state);
     this.telemetry = new PlaytestTelemetry(track);
     this.telemetry.reset(this.state);
@@ -83,11 +92,15 @@ export class GameApp {
 
     this.resizeObserver = new ResizeObserver(() => this.resize());
     this.resizeObserver.observe(this.container);
+    document.addEventListener('visibilitychange', this.onVisibilityChange);
     this.resize();
   }
 
   start(): void {
     this.previousTime = performance.now();
+    this.previousImpactStrength = this.state.vehicle.impactStrength;
+    mobileRuntime.setSessionActive(true);
+    mobileRuntime.setPaused(false);
     this.input.update(this.state.phase, this.state.decisions.active !== null);
     this.audio.update(this.state);
     this.qaPanel.update(this.state);
@@ -100,6 +113,7 @@ export class GameApp {
     this.state.phase = 'paused';
     this.input.clearTransientActions();
     this.input.update(this.state.phase, false);
+    mobileRuntime.setPaused(true);
     this.audio.playUi('pause');
     this.audio.update(this.state);
     this.qaPanel.update(this.state);
@@ -112,6 +126,7 @@ export class GameApp {
     this.previousTime = performance.now();
     this.input.clearTransientActions();
     this.input.update(this.state.phase, false);
+    mobileRuntime.setPaused(false);
     this.audio.playUi('confirm');
     this.audio.update(this.state);
     this.qaPanel.update(this.state);
@@ -123,6 +138,7 @@ export class GameApp {
     this.input.dispose();
     this.physics.dispose();
     this.resizeObserver.disconnect();
+    document.removeEventListener('visibilitychange', this.onVisibilityChange);
     this.renderer.domElement.removeEventListener('webglcontextlost', this.onContextLost);
     this.effects.dispose();
     this.qaPanel.dispose();
@@ -134,15 +150,17 @@ export class GameApp {
     });
     this.renderer.dispose();
     this.renderer.domElement.remove();
+    mobileRuntime.setSessionActive(false);
   }
 
   private buildCircuitScene(track: TrackDefinition): void {
-    this.scene.add(new THREE.HemisphereLight(track.visuals.ambientSkyColor, track.visuals.ambientGroundColor, 2.05));
+    const profile = mobileRuntime.profile;
+    this.scene.add(new THREE.HemisphereLight(track.visuals.ambientSkyColor, track.visuals.ambientGroundColor, profile.quality === 'economy' ? 2.35 : 2.05));
 
     const sun = new THREE.DirectionalLight(track.visuals.sunColor, track.visuals.sunIntensity);
     sun.position.set(-72, 110, 48);
-    sun.castShadow = true;
-    sun.shadow.mapSize.set(2048, 2048);
+    sun.castShadow = profile.shadowsEnabled;
+    sun.shadow.mapSize.set(profile.shadowMapSize, profile.shadowMapSize);
     sun.shadow.camera.near = 5;
     sun.shadow.camera.far = 300;
     sun.shadow.camera.left = -145;
@@ -152,13 +170,15 @@ export class GameApp {
     sun.shadow.bias = -0.00012;
     this.scene.add(sun);
 
-    const coolFill = new THREE.DirectionalLight(0x9be7ff, 0.52);
-    coolFill.position.set(76, 42, -70);
-    this.scene.add(coolFill);
+    if (profile.quality !== 'economy') {
+      const coolFill = new THREE.DirectionalLight(0x9be7ff, 0.52);
+      coolFill.position.set(76, 42, -70);
+      this.scene.add(coolFill);
 
-    const warmRim = new THREE.DirectionalLight(track.visuals.accentColor, 0.34);
-    warmRim.position.set(24, 30, 88);
-    this.scene.add(warmRim);
+      const warmRim = new THREE.DirectionalLight(track.visuals.accentColor, 0.34);
+      warmRim.position.set(24, 30, 88);
+      this.scene.add(warmRim);
+    }
 
     this.scene.add(createTrackScene(track));
     this.scene.add(createRaceMarkers(track));
@@ -187,6 +207,7 @@ export class GameApp {
     }
 
     if (this.state.phase === 'finished') {
+      mobileRuntime.setPaused(true);
       this.renderFrozenFrame();
       return;
     }
@@ -196,6 +217,7 @@ export class GameApp {
       if (decisionChoice !== null) {
         this.decisions.resolve(decisionChoice, this.finance, this.state.vehicle, this.state.race);
         this.state.phase = this.state.race.finished ? 'finished' : 'racing';
+        mobileRuntime.vibrate('confirm');
         this.audio.playUi('confirm');
       }
       this.audio.update(this.state);
@@ -224,9 +246,14 @@ export class GameApp {
     else if (this.state.race.finished) this.state.phase = 'finished';
     else this.state.phase = 'racing';
 
+    if (this.state.vehicle.impactStrength > 0.45 && this.previousImpactStrength <= 0.45) {
+      mobileRuntime.vibrate('impact');
+    }
+    this.previousImpactStrength = this.state.vehicle.impactStrength;
+
     this.input.update(this.state.phase, this.state.decisions.active !== null);
     this.itemScene.update(time / 1000, this.state.itemWorld);
-    this.effects.update(deltaSeconds, this.state);
+    if (mobileRuntime.profile.effectsEnabled) this.effects.update(deltaSeconds, this.state);
     this.audio.update(this.state);
     this.syncKartVisual(this.kart, this.state.vehicle, this.state.items, deltaSeconds);
     this.syncRivalKarts(deltaSeconds);
@@ -276,11 +303,17 @@ export class GameApp {
     this.pause();
   };
 
+  private readonly onVisibilityChange = (): void => {
+    if (document.visibilityState === 'hidden' && this.state.phase === 'racing') this.pause();
+  };
+
   private resize(): void {
     const width = Math.max(1, this.container.clientWidth);
     const height = Math.max(1, this.container.clientHeight);
     this.camera.aspect = width / height;
     this.camera.updateProjectionMatrix();
+    this.chaseCamera.setViewport(width, height);
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, mobileRuntime.profile.maxPixelRatio));
     this.renderer.setSize(width, height, false);
   }
 }

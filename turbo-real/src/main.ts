@@ -7,9 +7,11 @@ import './menus.css';
 import './controls.css';
 import './content.css';
 import './qa.css';
+import './mobile.css';
 import { AudioDirector } from './audio/AudioDirector';
 import { auditTrackCatalog } from './diagnostics/trackAnalysis';
 import { KartPhysics } from './physics/KartPhysics';
+import { mobileRuntime } from './platform/MobileRuntime';
 import { GameApp } from './render/app/GameApp';
 import { AIFleetController } from './simulation/AIController';
 import { DecisionController } from './simulation/decisions/DecisionController';
@@ -46,6 +48,7 @@ async function bootstrap(root: HTMLElement): Promise<void> {
       activeSession.hud.dispose();
       activeSession = null;
     }
+    mobileRuntime.setSessionActive(false);
     audio.stopSession();
     root.replaceChildren();
   }
@@ -101,6 +104,7 @@ async function bootstrap(root: HTMLElement): Promise<void> {
         physics?.dispose();
         hud.dispose();
         audio.stopSession();
+        mobileRuntime.setSessionActive(false);
         root.replaceChildren();
         ui.showMenu();
         throw error;
@@ -144,6 +148,7 @@ async function bootstrap(root: HTMLElement): Promise<void> {
       trackSelector.dispose();
       ui.dispose();
       audio.dispose();
+      mobileRuntime.dispose();
     },
     { once: true },
   );
@@ -151,6 +156,8 @@ async function bootstrap(root: HTMLElement): Promise<void> {
 
 const root = document.querySelector<HTMLElement>('#app');
 if (!root) throw new Error('Elemento #app não encontrado.');
+
+mobileRuntime.initialize(document.body);
 
 void bootstrap(root).catch((error: unknown) => {
   console.error('Falha ao iniciar Turbo Real:', error);
