@@ -45,10 +45,14 @@ async function bootstrap(root: HTMLElement): Promise<void> {
     ui.setBusy(true);
 
     try {
-      await audio.unlock();
-      audio.playUi('confirm');
-      disposeSession();
+      try {
+        await audio.unlock();
+        audio.playUi('confirm');
+      } catch (error) {
+        console.warn('Web Audio indisponível; iniciando corrida sem som.', error);
+      }
 
+      disposeSession();
       const state = createInitialGameState(track);
       audio.resetSession(state);
       const hud = createHud(document.body, state);
@@ -124,5 +128,5 @@ if (!root) throw new Error('Elemento #app não encontrado.');
 
 void bootstrap(root).catch((error: unknown) => {
   console.error('Falha ao iniciar Turbo Real:', error);
-  root.innerHTML = '<div class="boot-error"><strong>Falha ao iniciar o jogo.</strong><span>Recarregue a página ou verifique o suporte a WebAssembly/Web Audio.</span></div>';
+  root.innerHTML = '<div class="boot-error"><strong>Falha ao iniciar o jogo.</strong><span>Recarregue a página ou verifique o suporte a WebAssembly.</span></div>';
 });
