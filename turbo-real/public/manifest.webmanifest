@@ -1,0 +1,21 @@
+{
+  "name": "Turbo Real: Corrida Financeira",
+  "short_name": "Turbo Real",
+  "description": "Kart racer arcade 3D brasileiro sobre educação financeira.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#07120c",
+  "theme_color": "#07120c",
+  "orientation": "any",
+  "lang": "pt-BR",
+  "categories": ["games", "education"],
+  "icons": [
+    {
+      "src": "./icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
