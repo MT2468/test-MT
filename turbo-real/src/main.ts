@@ -5,6 +5,7 @@ import './finance.css';
 import './decisions.css';
 import './menus.css';
 import './controls.css';
+import './content.css';
 import { AudioDirector } from './audio/AudioDirector';
 import { KartPhysics } from './physics/KartPhysics';
 import { GameApp } from './render/app/GameApp';
@@ -14,9 +15,11 @@ import { FinanceController } from './simulation/finance/FinanceController';
 import { ItemController } from './simulation/items/ItemController';
 import { RaceController } from './simulation/RaceController';
 import { createInitialGameState } from './simulation/state';
-import { FIRST_TRACK } from './track/firstTrack';
+import { TRACK_CATALOG } from './track/catalog';
+import type { TrackDefinition } from './track/firstTrack';
 import { createGameUi, type GameUiController } from './ui/createGameUi';
 import { createHud, type HudController } from './ui/createHud';
+import { createTrackSelector, type TrackSelectorController } from './ui/createTrackSelector';
 
 interface ActiveSession {
   readonly game: GameApp;
@@ -24,11 +27,13 @@ interface ActiveSession {
 }
 
 async function bootstrap(root: HTMLElement): Promise<void> {
-  const track = FIRST_TRACK;
   const audio = new AudioDirector();
+  let selectedTrack = TRACK_CATALOG[0];
+  let sessionTrack = selectedTrack;
   let activeSession: ActiveSession | null = null;
   let starting = false;
   let ui: GameUiController;
+  let trackSelector: TrackSelectorController;
 
   function disposeSession(): void {
     if (activeSession !== null) {
@@ -40,7 +45,7 @@ async function bootstrap(root: HTMLElement): Promise<void> {
     root.replaceChildren();
   }
 
-  async function startSession(): Promise<void> {
+  async function startSession(track: TrackDefinition): Promise<void> {
     if (starting) return;
     starting = true;
     ui.setBusy(true);
@@ -57,6 +62,8 @@ async function bootstrap(root: HTMLElement): Promise<void> {
       const state = createInitialGameState(track);
       audio.resetSession(state);
       const hud = createHud(document.body, state);
+      const hudTrackLabel = document.querySelector<HTMLElement>('.brand-chip div span');
+      if (hudTrackLabel) hudTrackLabel.textContent = track.name;
       let physics: KartPhysics | null = null;
 
       try {
@@ -64,7 +71,7 @@ async function bootstrap(root: HTMLElement): Promise<void> {
         const race = new RaceController(track, state.race, state.vehicle);
         const ai = new AIFleetController(track, state.rivals);
         const items = new ItemController(track, state);
-        const finance = new FinanceController(state.finance, state.race);
+        const finance = new FinanceController(state.finance, state.race, track.economy);
         const decisions = new DecisionController(state.decisions);
         const game = new GameApp(
           root,
@@ -99,17 +106,29 @@ async function bootstrap(root: HTMLElement): Promise<void> {
     }
   }
 
+  function startSelectedTrack(): Promise<void> {
+    sessionTrack = selectedTrack;
+    return startSession(sessionTrack);
+  }
+
+  function restartSession(): Promise<void> {
+    return startSession(sessionTrack);
+  }
+
   function exitToMenu(): void {
     audio.playUi('back');
     disposeSession();
     ui.showMenu();
   }
 
-  ui = createGameUi(document.body, track, {
-    onStart: startSession,
+  ui = createGameUi(document.body, selectedTrack, {
+    onStart: startSelectedTrack,
     onResume: () => activeSession?.game.resume(),
-    onRestart: startSession,
+    onRestart: restartSession,
     onExitToMenu: exitToMenu,
+  });
+  trackSelector = createTrackSelector(document.body, TRACK_CATALOG, selectedTrack, (track) => {
+    selectedTrack = track;
   });
   ui.showMenu();
 
@@ -117,6 +136,7 @@ async function bootstrap(root: HTMLElement): Promise<void> {
     'beforeunload',
     () => {
       disposeSession();
+      trackSelector.dispose();
       ui.dispose();
       audio.dispose();
     },

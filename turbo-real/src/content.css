@@ -1,0 +1,157 @@
+.track-selector {
+  display: grid;
+  gap: 10px;
+}
+
+.track-selector__heading {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.track-selector__heading > div {
+  display: grid;
+  gap: 2px;
+}
+
+.track-selector__heading span {
+  color: var(--tr-green);
+  font-size: 0.61rem;
+  font-weight: 900;
+  letter-spacing: 0.14em;
+}
+
+.track-selector__heading strong {
+  font-size: 1rem;
+}
+
+.track-selector__heading small {
+  color: var(--tr-muted);
+  font-size: 0.64rem;
+}
+
+.track-selector__grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.track-card {
+  --track-accent: #f7c948;
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  min-height: 118px;
+  padding: 11px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 15px;
+  background: rgba(255, 255, 255, 0.035);
+  color: var(--tr-ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: transform 120ms ease, border-color 120ms ease, background 120ms ease;
+}
+
+.track-card:hover,
+.track-card:focus-visible,
+.track-card.is-gamepad-focused {
+  transform: translateY(-2px);
+  border-color: var(--track-accent);
+}
+
+.track-card.is-selected {
+  border-color: var(--track-accent);
+  background: color-mix(in srgb, var(--track-accent) 12%, rgba(255, 255, 255, 0.035));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--track-accent) 28%, transparent);
+}
+
+.track-card__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.track-card__top b {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  background: var(--track-accent);
+  color: #081b10;
+  font-size: 0.66rem;
+}
+
+.track-card__top em {
+  color: rgba(239, 255, 244, 0.58);
+  font-size: 0.58rem;
+  font-style: normal;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.track-card > strong {
+  overflow: hidden;
+  font-size: 0.78rem;
+  line-height: 1.1;
+  text-overflow: ellipsis;
+}
+
+.track-card__concept {
+  color: rgba(239, 255, 244, 0.62);
+  font-size: 0.61rem;
+  line-height: 1.25;
+}
+
+.track-card > small {
+  margin-top: auto;
+  color: var(--track-accent);
+  font-size: 0.57rem;
+  font-weight: 800;
+}
+
+.race-select-card[data-theme="market"] {
+  border-color: rgba(255, 122, 89, 0.42);
+}
+
+.race-select-card[data-theme="budget"] {
+  border-color: rgba(108, 140, 255, 0.42);
+}
+
+.race-select-card[data-theme="month-end"] {
+  border-color: rgba(255, 178, 77, 0.48);
+  background: linear-gradient(135deg, rgba(255, 178, 77, 0.08), rgba(19, 29, 50, 0.82));
+}
+
+@media (max-width: 760px) {
+  .track-selector__grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .track-card {
+    min-height: 108px;
+  }
+}
+
+@media (max-width: 430px) {
+  .track-selector__grid {
+    display: flex;
+    overflow-x: auto;
+    scroll-snap-type: x proximity;
+    padding-bottom: 3px;
+  }
+
+  .track-card {
+    flex: 0 0 min(76vw, 240px);
+    scroll-snap-align: start;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .track-card {
+    transition: none;
+  }
+}

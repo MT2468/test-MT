@@ -39,6 +39,41 @@ export interface TrackItemConfig {
   readonly laneOffsets: readonly number[];
 }
 
+export type TrackTheme = 'urban' | 'market' | 'budget' | 'month-end';
+
+export interface TrackVisualConfig {
+  readonly theme: TrackTheme;
+  readonly skyColor: number;
+  readonly fogColor: number;
+  readonly groundColor: number;
+  readonly curbPrimary: number;
+  readonly curbSecondary: number;
+  readonly barrierColor: number;
+  readonly accentColor: number;
+  readonly ambientSkyColor: number;
+  readonly ambientGroundColor: number;
+  readonly sunColor: number;
+  readonly sunIntensity: number;
+  readonly exposure: number;
+}
+
+export interface TrackEconomyConfig {
+  readonly checkpointIncome: number;
+  readonly lapOperatingCost: number;
+  readonly emergencyCost: number;
+  readonly emergencyLabel: string;
+  readonly debtInterestRate: number;
+}
+
+export interface TrackContentConfig {
+  readonly cupId: string;
+  readonly cupName: string;
+  readonly cupOrder: number;
+  readonly difficulty: 'Fácil' | 'Médio' | 'Difícil';
+  readonly concept: string;
+  readonly financialHook: string;
+}
+
 export interface TrackDefinition {
   readonly id: string;
   readonly name: string;
@@ -50,29 +85,28 @@ export interface TrackDefinition {
   readonly bounds: TrackBounds;
   readonly race: TrackRaceConfig;
   readonly items: TrackItemConfig;
+  readonly visuals: TrackVisualConfig;
+  readonly economy: TrackEconomyConfig;
+  readonly content: TrackContentConfig;
 }
 
-const CONTROL_POINTS: readonly TrackPoint[] = [
-  { x: -30, z: 72 },
-  { x: 22, z: 72 },
-  { x: 58, z: 55 },
-  { x: 76, z: 20 },
-  { x: 70, z: -18 },
-  { x: 48, z: -52 },
-  { x: 10, z: -70 },
-  { x: -35, z: -66 },
-  { x: -68, z: -42 },
-  { x: -78, z: -5 },
-  { x: -68, z: 34 },
-  { x: -48, z: 60 },
-];
+export interface TrackBlueprint {
+  readonly id: string;
+  readonly name: string;
+  readonly subtitle: string;
+  readonly controlPoints: readonly TrackPoint[];
+  readonly halfWidth?: number;
+  readonly barrierOffset?: number;
+  readonly totalLaps?: number;
+  readonly checkpointCount?: number;
+  readonly itemBoxRowCount?: number;
+  readonly laneOffsets?: readonly number[];
+  readonly visuals: TrackVisualConfig;
+  readonly economy: TrackEconomyConfig;
+  readonly content: TrackContentConfig;
+}
 
 const SAMPLES_PER_SEGMENT = 10;
-const HALF_WIDTH = 8.4;
-const BARRIER_OFFSET = 9.05;
-const CHECKPOINT_COUNT = 6;
-const TOTAL_LAPS = 3;
-const ITEM_BOX_ROW_COUNT = 5;
 
 function catmullRom(p0: TrackPoint, p1: TrackPoint, p2: TrackPoint, p3: TrackPoint, t: number): TrackPoint {
   const t2 = t * t;
@@ -115,15 +149,19 @@ function catmullRomTangent(
   return { x: x / length, z: z / length };
 }
 
-function buildSamples(): readonly TrackSample[] {
+function buildSamples(
+  controlPoints: readonly TrackPoint[],
+  halfWidth: number,
+  barrierOffset: number,
+): readonly TrackSample[] {
   const samples: TrackSample[] = [];
-  const count = CONTROL_POINTS.length;
+  const count = controlPoints.length;
 
   for (let segment = 0; segment < count; segment += 1) {
-    const p0 = CONTROL_POINTS[(segment - 1 + count) % count];
-    const p1 = CONTROL_POINTS[segment];
-    const p2 = CONTROL_POINTS[(segment + 1) % count];
-    const p3 = CONTROL_POINTS[(segment + 2) % count];
+    const p0 = controlPoints[(segment - 1 + count) % count];
+    const p1 = controlPoints[segment];
+    const p2 = controlPoints[(segment + 1) % count];
+    const p3 = controlPoints[(segment + 2) % count];
 
     for (let step = 0; step < SAMPLES_PER_SEGMENT; step += 1) {
       const t = step / SAMPLES_PER_SEGMENT;
@@ -139,14 +177,14 @@ function buildSamples(): readonly TrackSample[] {
         tangentZ: tangent.z,
         rightX,
         rightZ,
-        leftEdgeX: position.x - rightX * HALF_WIDTH,
-        leftEdgeZ: position.z - rightZ * HALF_WIDTH,
-        rightEdgeX: position.x + rightX * HALF_WIDTH,
-        rightEdgeZ: position.z + rightZ * HALF_WIDTH,
-        leftBarrierX: position.x - rightX * BARRIER_OFFSET,
-        leftBarrierZ: position.z - rightZ * BARRIER_OFFSET,
-        rightBarrierX: position.x + rightX * BARRIER_OFFSET,
-        rightBarrierZ: position.z + rightZ * BARRIER_OFFSET,
+        leftEdgeX: position.x - rightX * halfWidth,
+        leftEdgeZ: position.z - rightZ * halfWidth,
+        rightEdgeX: position.x + rightX * halfWidth,
+        rightEdgeZ: position.z + rightZ * halfWidth,
+        leftBarrierX: position.x - rightX * barrierOffset,
+        leftBarrierZ: position.z - rightZ * barrierOffset,
+        rightBarrierX: position.x + rightX * barrierOffset,
+        rightBarrierZ: position.z + rightZ * barrierOffset,
       });
     }
   }
@@ -170,43 +208,106 @@ function calculateBounds(samples: readonly TrackSample[]): TrackBounds {
   return { minX, maxX, minZ, maxZ };
 }
 
-function buildCheckpointIndices(sampleCount: number): readonly number[] {
+function buildCheckpointIndices(sampleCount: number, checkpointCount: number): readonly number[] {
   return Object.freeze(
-    Array.from({ length: CHECKPOINT_COUNT }, (_, index) => Math.floor((index * sampleCount) / CHECKPOINT_COUNT)),
+    Array.from({ length: checkpointCount }, (_, index) => Math.floor((index * sampleCount) / checkpointCount)),
   );
 }
 
-function buildItemBoxIndices(sampleCount: number): readonly number[] {
+function buildItemBoxIndices(sampleCount: number, rowCount: number): readonly number[] {
   return Object.freeze(
     Array.from(
-      { length: ITEM_BOX_ROW_COUNT },
-      (_, index) => Math.floor(((index + 0.62) * sampleCount) / ITEM_BOX_ROW_COUNT) % sampleCount,
+      { length: rowCount },
+      (_, index) => Math.floor(((index + 0.62) * sampleCount) / rowCount) % sampleCount,
     ),
   );
 }
 
-const samples = buildSamples();
-const start = samples[0];
+export function createTrackDefinition(blueprint: TrackBlueprint): TrackDefinition {
+  const halfWidth = blueprint.halfWidth ?? 8.4;
+  const barrierOffset = blueprint.barrierOffset ?? halfWidth + 0.65;
+  const totalLaps = blueprint.totalLaps ?? 3;
+  const checkpointCount = blueprint.checkpointCount ?? 6;
+  const itemBoxRowCount = blueprint.itemBoxRowCount ?? 5;
+  const laneOffsets = blueprint.laneOffsets ?? [-3.1, 0, 3.1];
+  const samples = buildSamples(blueprint.controlPoints, halfWidth, barrierOffset);
+  const start = samples[0];
 
-export const FIRST_TRACK: TrackDefinition = Object.freeze({
+  return Object.freeze({
+    id: blueprint.id,
+    name: blueprint.name,
+    subtitle: blueprint.subtitle,
+    halfWidth,
+    barrierOffset,
+    samples,
+    spawn: Object.freeze({
+      x: start.x,
+      z: start.z,
+      heading: Math.atan2(start.tangentX, -start.tangentZ),
+    }),
+    bounds: Object.freeze(calculateBounds(samples)),
+    race: Object.freeze({
+      totalLaps,
+      checkpointSampleIndices: buildCheckpointIndices(samples.length, checkpointCount),
+    }),
+    items: Object.freeze({
+      boxSampleIndices: buildItemBoxIndices(samples.length, itemBoxRowCount),
+      laneOffsets: Object.freeze([...laneOffsets]),
+    }),
+    visuals: Object.freeze({ ...blueprint.visuals }),
+    economy: Object.freeze({ ...blueprint.economy }),
+    content: Object.freeze({ ...blueprint.content }),
+  });
+}
+
+const AVENIDA_POINTS: readonly TrackPoint[] = [
+  { x: -30, z: 72 },
+  { x: 22, z: 72 },
+  { x: 58, z: 55 },
+  { x: 76, z: 20 },
+  { x: 70, z: -18 },
+  { x: 48, z: -52 },
+  { x: 10, z: -70 },
+  { x: -35, z: -66 },
+  { x: -68, z: -42 },
+  { x: -78, z: -5 },
+  { x: -68, z: 34 },
+  { x: -48, z: 60 },
+];
+
+export const FIRST_TRACK: TrackDefinition = createTrackDefinition({
   id: 'avenida-do-troco',
   name: 'Avenida do Troco',
   subtitle: 'Circuito urbano-futurista brasileiro',
-  halfWidth: HALF_WIDTH,
-  barrierOffset: BARRIER_OFFSET,
-  samples,
-  spawn: Object.freeze({
-    x: start.x,
-    z: start.z,
-    heading: Math.atan2(start.tangentX, -start.tangentZ),
-  }),
-  bounds: Object.freeze(calculateBounds(samples)),
-  race: Object.freeze({
-    totalLaps: TOTAL_LAPS,
-    checkpointSampleIndices: buildCheckpointIndices(samples.length),
-  }),
-  items: Object.freeze({
-    boxSampleIndices: buildItemBoxIndices(samples.length),
-    laneOffsets: Object.freeze([-3.1, 0, 3.1]),
-  }),
+  controlPoints: AVENIDA_POINTS,
+  visuals: {
+    theme: 'urban',
+    skyColor: 0x84d2fb,
+    fogColor: 0x84d2fb,
+    groundColor: 0x237b45,
+    curbPrimary: 0x1ba65a,
+    curbSecondary: 0xf7c948,
+    barrierColor: 0xe9edf0,
+    accentColor: 0xf7c948,
+    ambientSkyColor: 0xf0fbff,
+    ambientGroundColor: 0x16482a,
+    sunColor: 0xffffff,
+    sunIntensity: 3.15,
+    exposure: 1.08,
+  },
+  economy: {
+    checkpointIncome: 6,
+    lapOperatingCost: 18,
+    emergencyCost: 45,
+    emergencyLabel: 'Reparo inesperado',
+    debtInterestRate: 0.05,
+  },
+  content: {
+    cupId: 'primeiro-salario',
+    cupName: 'Copa Primeiro Salário',
+    cupOrder: 1,
+    difficulty: 'Fácil',
+    concept: 'Troco, caixa e reserva',
+    financialHook: 'Equilíbrio básico entre dinheiro disponível e proteção.',
+  },
 });

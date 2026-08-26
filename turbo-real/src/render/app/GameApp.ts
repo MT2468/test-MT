@@ -44,12 +44,12 @@ export class GameApp {
     track: TrackDefinition,
     private readonly onStateUpdate: (state: GameState) => void = () => {},
   ) {
-    this.scene.background = new THREE.Color(0x84d2fb);
-    this.scene.fog = new THREE.Fog(0x84d2fb, 118, 350);
+    this.scene.background = new THREE.Color(track.visuals.skyColor);
+    this.scene.fog = new THREE.Fog(track.visuals.fogColor, 118, 350);
 
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.08;
+    this.renderer.toneMappingExposure = track.visuals.exposure;
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -126,26 +126,38 @@ export class GameApp {
   }
 
   private buildCircuitScene(track: TrackDefinition): void {
-    this.scene.add(new THREE.HemisphereLight(0xf0fbff, 0x16482a, 2.05));
+    this.scene.add(
+      new THREE.HemisphereLight(
+        track.visuals.ambientSkyColor,
+        track.visuals.ambientGroundColor,
+        track.visuals.theme === 'month-end' ? 1.7 : 2.05,
+      ),
+    );
 
-    const sun = new THREE.DirectionalLight(0xffffff, 3.15);
+    const sun = new THREE.DirectionalLight(track.visuals.sunColor, track.visuals.sunIntensity);
     sun.position.set(-72, 110, 48);
     sun.castShadow = true;
     sun.shadow.mapSize.set(2048, 2048);
     sun.shadow.camera.near = 5;
     sun.shadow.camera.far = 300;
-    sun.shadow.camera.left = -145;
-    sun.shadow.camera.right = 145;
-    sun.shadow.camera.top = 145;
-    sun.shadow.camera.bottom = -145;
+    sun.shadow.camera.left = -155;
+    sun.shadow.camera.right = 155;
+    sun.shadow.camera.top = 155;
+    sun.shadow.camera.bottom = -155;
     sun.shadow.bias = -0.00012;
     this.scene.add(sun);
 
-    const coolFill = new THREE.DirectionalLight(0x9be7ff, 0.52);
+    const coolFill = new THREE.DirectionalLight(
+      track.visuals.theme === 'month-end' ? 0x7e9fe2 : 0x9be7ff,
+      track.visuals.theme === 'month-end' ? 0.68 : 0.52,
+    );
     coolFill.position.set(76, 42, -70);
     this.scene.add(coolFill);
 
-    const warmRim = new THREE.DirectionalLight(0xffdc7a, 0.34);
+    const warmRim = new THREE.DirectionalLight(
+      track.visuals.theme === 'month-end' ? 0xff9f68 : 0xffdc7a,
+      track.visuals.theme === 'month-end' ? 0.55 : 0.34,
+    );
     warmRim.position.set(24, 30, 88);
     this.scene.add(warmRim);
 

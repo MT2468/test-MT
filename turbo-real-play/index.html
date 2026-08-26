@@ -4,8 +4,8 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#07120c" />
-    <meta name="description" content="Launcher de teste do Turbo Real até a Fase 11." />
-    <title>Turbo Real | Teste Fase 11</title>
+    <meta name="description" content="Launcher de teste do Turbo Real até a Fase 12." />
+    <title>Turbo Real | Teste Fase 12</title>
     <link rel="stylesheet" href="../turbo-real/src/styles.css" />
     <link rel="stylesheet" href="../turbo-real/src/race.css" />
     <link rel="stylesheet" href="../turbo-real/src/items.css" />
@@ -13,6 +13,7 @@
     <link rel="stylesheet" href="../turbo-real/src/decisions.css" />
     <link rel="stylesheet" href="../turbo-real/src/menus.css" />
     <link rel="stylesheet" href="../turbo-real/src/controls.css" />
+    <link rel="stylesheet" href="../turbo-real/src/content.css" />
     <style>
       .test-loader {
         position: fixed;
@@ -38,7 +39,7 @@
     <div class="test-loader" id="test-loader" role="status" aria-live="polite">
       <div>
         <strong>TURBO REAL</strong>
-        Preparando a build de teste da Fase 11…
+        Preparando a build de teste da Fase 12…
         <small>Na primeira abertura o navegador compila os módulos TypeScript do jogo.</small>
       </div>
     </div>
@@ -129,7 +130,7 @@
       try {
         const entryUrl = new URL('main.ts', sourceRoot);
         const entryBlob = await compileModule(entryUrl);
-        setStatus('Abrindo menu…');
+        setStatus('Abrindo Copa Primeiro Salário…');
         await import(entryBlob);
         loader?.remove();
       } catch (error) {

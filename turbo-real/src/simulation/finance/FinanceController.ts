@@ -1,12 +1,9 @@
+import type { TrackEconomyConfig } from '../../track/firstTrack';
 import type { RaceState } from '../RaceController';
 import type { FinancialState, FinancialTransactionKind } from './types';
 
 export type FinanceInputAction = 'save' | 'withdraw';
 
-const CHECKPOINT_INCOME = 6;
-const LAP_OPERATING_COST = 18;
-const EMERGENCY_COST = 45;
-const DEBT_INTEREST_RATE = 0.05;
 const TRANSFER_AMOUNT = 10;
 const TRANSFER_COOLDOWN = 0.28;
 const MESSAGE_SECONDS = 2.8;
@@ -23,6 +20,7 @@ export class FinanceController {
   constructor(
     private readonly state: FinancialState,
     race: RaceState,
+    private readonly economy: TrackEconomyConfig,
   ) {
     this.lastCheckpointsPassed = race.checkpointsPassed;
     this.lastCompletedLaps = race.completedLaps;
@@ -37,20 +35,33 @@ export class FinanceController {
 
     if (race.completedLaps === this.lastCompletedLaps && race.checkpointsPassed > this.lastCheckpointsPassed) {
       const passed = race.checkpointsPassed - this.lastCheckpointsPassed;
-      this.addIncome(passed * CHECKPOINT_INCOME, 'Renda por setor', 'income', race.raceTimeSeconds);
+      this.addIncome(
+        passed * this.economy.checkpointIncome,
+        'Renda por setor',
+        'income',
+        race.raceTimeSeconds,
+      );
     }
 
     if (race.completedLaps > this.lastCompletedLaps) {
       const completedNow = race.completedLaps - this.lastCompletedLaps;
       for (let index = 0; index < completedNow; index += 1) {
-        this.payRoutineExpense(LAP_OPERATING_COST, 'Custo operacional da volta', race.raceTimeSeconds);
+        this.payRoutineExpense(
+          this.economy.lapOperatingCost,
+          'Custo operacional da volta',
+          race.raceTimeSeconds,
+        );
         this.processCommitments(race.raceTimeSeconds);
         this.applyDebtInterest(race.raceTimeSeconds);
       }
     }
 
     if (!this.state.unexpectedExpenseHandled && race.completedLaps === 1 && race.checkpointsPassed >= 2) {
-      this.payEmergencyExpense(EMERGENCY_COST, 'Reparo inesperado', race.raceTimeSeconds);
+      this.payEmergencyExpense(
+        this.economy.emergencyCost,
+        this.economy.emergencyLabel,
+        race.raceTimeSeconds,
+      );
       this.state.unexpectedExpenseHandled = true;
     }
 
@@ -86,7 +97,11 @@ export class FinanceController {
     this.state.totalExpenses = roundMoney(this.state.totalExpenses + safeAmount);
     this.state.totalDecisionCosts = roundMoney(this.state.totalDecisionCosts + safeAmount);
     this.record('decision-expense', label, -safeAmount, atSeconds);
-    this.message(debtCreated > 0 ? `${label} · ${this.money(debtCreated)} viraram dívida` : `${label} · -${this.money(safeAmount)}`);
+    this.message(
+      debtCreated > 0
+        ? `${label} · ${this.money(debtCreated)} viraram dívida`
+        : `${label} · -${this.money(safeAmount)}`,
+    );
   }
 
   scheduleLapCommitment(label: string, amountPerLap: number, charges: number): void {
@@ -144,7 +159,11 @@ export class FinanceController {
     const debtCreated = this.payFromBalanceThenDebt(amount);
     this.state.totalExpenses = roundMoney(this.state.totalExpenses + amount);
     this.record('routine-expense', label, -amount, atSeconds);
-    this.message(debtCreated > 0 ? `${this.money(debtCreated)} viraram dívida` : `-${this.money(amount)} · custo da volta`);
+    this.message(
+      debtCreated > 0
+        ? `${this.money(debtCreated)} viraram dívida`
+        : `-${this.money(amount)} · custo da volta`,
+    );
   }
 
   private payEmergencyExpense(amount: number, label: string, atSeconds: number): void {
@@ -163,8 +182,8 @@ export class FinanceController {
     this.record('emergency', label, -amount, atSeconds);
     this.message(
       fromReserve > 0
-        ? `Imprevisto ${this.money(amount)} · reserva cobriu ${this.money(fromReserve)}`
-        : `Imprevisto ${this.money(amount)} sem reserva disponível`,
+        ? `${label} ${this.money(amount)} · reserva cobriu ${this.money(fromReserve)}`
+        : `${label} ${this.money(amount)} sem reserva disponível`,
     );
   }
 
@@ -187,7 +206,7 @@ export class FinanceController {
 
   private applyDebtInterest(atSeconds: number): void {
     if (this.state.debt <= 0) return;
-    const interest = roundMoney(this.state.debt * DEBT_INTEREST_RATE);
+    const interest = roundMoney(this.state.debt * this.economy.debtInterestRate);
     if (interest <= 0) return;
     this.state.debt = roundMoney(this.state.debt + interest);
     this.state.totalInterest = roundMoney(this.state.totalInterest + interest);

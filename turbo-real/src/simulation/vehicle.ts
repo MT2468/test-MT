@@ -1,6 +1,6 @@
 export interface DrivingInput {
-  throttle: -1 | 0 | 1;
-  steer: -1 | 0 | 1;
+  throttle: number;
+  steer: number;
   drift: boolean;
 }
 
