@@ -1,0 +1,684 @@
+:root {
+  --tr-vw: 100vw;
+  --tr-vh: 100vh;
+  --tr-vh-unit: 1vh;
+  --tr-safe-top: max(10px, env(safe-area-inset-top));
+  --tr-safe-right: max(10px, env(safe-area-inset-right));
+  --tr-safe-bottom: max(10px, env(safe-area-inset-bottom));
+  --tr-safe-left: max(10px, env(safe-area-inset-left));
+}
+
+body.tr-mobile {
+  width: 100%;
+  height: var(--tr-vh);
+  min-height: var(--tr-vh);
+  overflow: hidden;
+  overscroll-behavior: none;
+  background: #06120c;
+  -webkit-text-size-adjust: 100%;
+}
+
+body.tr-mobile #app,
+body.tr-mobile canvas {
+  width: 100% !important;
+  height: 100% !important;
+}
+
+body.tr-mobile canvas {
+  display: block;
+  touch-action: none;
+}
+
+body.tr-mobile .game-surface {
+  width: var(--tr-vw);
+  height: var(--tr-vh);
+  min-height: var(--tr-vh);
+  padding-top: var(--tr-safe-top);
+  padding-right: var(--tr-safe-right);
+  padding-bottom: var(--tr-safe-bottom);
+  padding-left: var(--tr-safe-left);
+  box-sizing: border-box;
+  overscroll-behavior: contain;
+}
+
+body.tr-mobile .game-menu {
+  align-items: flex-start;
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
+  padding-top: calc(var(--tr-safe-top) + 12px);
+  padding-bottom: calc(var(--tr-safe-bottom) + 84px);
+}
+
+body.tr-mobile .game-menu__panel {
+  width: min(100%, 620px);
+  margin-inline: auto;
+  padding: clamp(16px, 4vw, 24px);
+  border-radius: 26px;
+}
+
+body.tr-mobile .game-logo {
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+body.tr-mobile .game-logo__mark {
+  width: 42px;
+  height: 42px;
+  font-size: 1rem;
+}
+
+body.tr-mobile .game-logo small {
+  font-size: 0.55rem;
+  letter-spacing: 0.13em;
+}
+
+body.tr-mobile .game-logo h1 {
+  font-size: clamp(1.8rem, 8vw, 2.5rem);
+  line-height: 0.95;
+}
+
+body.tr-mobile .menu-copy {
+  margin-bottom: 14px;
+}
+
+body.tr-mobile .menu-copy h2 {
+  max-width: 18ch;
+  font-size: clamp(1.25rem, 5.6vw, 1.8rem);
+  line-height: 1.03;
+}
+
+body.tr-mobile .menu-copy p {
+  max-width: 48ch;
+  font-size: 0.78rem;
+  line-height: 1.45;
+}
+
+body.tr-mobile .race-select-card {
+  padding: 13px;
+  border-radius: 20px;
+}
+
+body.tr-mobile .race-select-card__stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
+}
+
+body.tr-mobile .race-select-card__stats span {
+  min-width: 0;
+  padding: 7px 8px;
+  text-align: center;
+}
+
+body.tr-mobile .track-selector {
+  margin-block: 14px;
+}
+
+body.tr-mobile .track-selector__heading {
+  padding-inline: 2px;
+}
+
+body.tr-mobile .track-selector__grid {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(210px, 78vw);
+  grid-template-columns: none;
+  gap: 10px;
+  overflow-x: auto;
+  padding: 4px 2px 10px;
+  scroll-snap-type: x mandatory;
+  overscroll-behavior-inline: contain;
+  scrollbar-width: none;
+  touch-action: pan-x;
+}
+
+body.tr-mobile .track-selector__grid::-webkit-scrollbar {
+  display: none;
+}
+
+body.tr-mobile .track-card {
+  min-height: 124px;
+  scroll-snap-align: center;
+  border-radius: 20px;
+  text-align: left;
+}
+
+body.tr-mobile .menu-primary,
+body.tr-mobile .menu-secondary,
+body.tr-mobile .menu-ghost {
+  min-height: 52px;
+  border-radius: 17px;
+  touch-action: manipulation;
+}
+
+body.tr-mobile .controls-drawer {
+  margin-top: 10px;
+}
+
+body.tr-mobile .controls-drawer summary {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+}
+
+body.tr-mobile .input-guide__row {
+  grid-template-columns: 68px 1fr;
+  gap: 8px;
+  font-size: 0.64rem;
+}
+
+body.tr-mobile .menu-footer {
+  display: none;
+}
+
+.mobile-companion {
+  display: none;
+}
+
+body.tr-mobile .mobile-companion:not([hidden]) {
+  position: fixed;
+  z-index: 60;
+  left: 50%;
+  bottom: calc(var(--tr-safe-bottom) + 8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  transform: translateX(-50%);
+  width: min(calc(100vw - 24px), 560px);
+  pointer-events: auto;
+}
+
+body.tr-mobile .mobile-companion button {
+  min-height: 42px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 999px;
+  padding: 0 13px;
+  background: rgba(5, 28, 16, 0.9);
+  color: #effff4;
+  font: 850 0.62rem/1 ui-sans-serif, system-ui, sans-serif;
+  letter-spacing: 0.06em;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.28);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  touch-action: manipulation;
+}
+
+body.tr-mobile .mobile-companion button span {
+  margin-left: 5px;
+}
+
+body.tr-mobile .mobile-companion small {
+  padding: 6px 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(239, 255, 244, 0.58);
+  font-size: 0.48rem;
+  font-weight: 800;
+  letter-spacing: 0.07em;
+  white-space: nowrap;
+}
+
+body.tr-mobile.tr-session-active .mobile-companion {
+  display: none !important;
+}
+
+/* HUD mobile: informações críticas nas bordas, centro livre. */
+body.tr-mobile .hud {
+  inset: 0;
+  padding: var(--tr-safe-top) var(--tr-safe-right) var(--tr-safe-bottom) var(--tr-safe-left);
+}
+
+body.tr-mobile .brand-chip {
+  display: none;
+}
+
+body.tr-mobile .race-chip {
+  top: var(--tr-safe-top);
+  left: var(--tr-safe-left);
+  transform: none;
+  max-width: 46vw;
+  padding: 8px 10px;
+  border-radius: 15px;
+}
+
+body.tr-mobile .race-chip > strong {
+  font-size: clamp(1rem, 4vw, 1.25rem);
+}
+
+body.tr-mobile .race-chip div span {
+  font-size: 0.58rem;
+}
+
+body.tr-mobile .race-chip div small {
+  font-size: 0.48rem;
+}
+
+body.tr-mobile .wallet-chip {
+  top: var(--tr-safe-top);
+  right: var(--tr-safe-right);
+  left: auto;
+  bottom: auto;
+  width: auto;
+  max-width: 47vw;
+  margin: 0;
+  padding: 7px 9px;
+  border-radius: 15px;
+  display: grid;
+  grid-template-columns: repeat(2, auto);
+  gap: 3px 9px;
+  font-size: 0.52rem;
+}
+
+body.tr-mobile .wallet-chip span {
+  white-space: nowrap;
+}
+
+body.tr-mobile .wallet-chip strong {
+  font-size: 0.62rem;
+}
+
+body.tr-mobile .item-chip {
+  top: calc(var(--tr-safe-top) + 58px);
+  left: var(--tr-safe-left);
+  right: auto;
+  padding: 6px 9px;
+  min-width: 0;
+  max-width: 42vw;
+  border-radius: 15px;
+}
+
+body.tr-mobile .item-chip > strong {
+  width: 28px;
+  height: 28px;
+  font-size: 0.9rem;
+}
+
+body.tr-mobile .item-chip div span {
+  font-size: 0.56rem;
+}
+
+body.tr-mobile .item-chip div small {
+  font-size: 0.46rem;
+}
+
+body.tr-mobile .speed-chip {
+  left: 50%;
+  right: auto;
+  bottom: calc(var(--tr-safe-bottom) + 18px);
+  transform: translateX(-50%);
+  margin: 0;
+  padding: 7px 11px;
+  border-radius: 17px;
+  pointer-events: none;
+}
+
+body.tr-mobile .speed-chip strong {
+  font-size: clamp(1.65rem, 7vw, 2.2rem);
+}
+
+body.tr-mobile .speed-chip small {
+  font-size: 0.46rem;
+}
+
+body.tr-mobile .drift-chip {
+  left: 50%;
+  right: auto;
+  bottom: calc(var(--tr-safe-bottom) + 80px);
+  transform: translateX(-50%);
+  width: min(34vw, 170px);
+  margin: 0;
+  padding: 6px 8px;
+  border-radius: 13px;
+  pointer-events: none;
+}
+
+body.tr-mobile .drift-chip__heading {
+  font-size: 0.48rem;
+}
+
+body.tr-mobile .finance-toast,
+body.tr-mobile .decision-outcome {
+  top: calc(var(--tr-safe-top) + 60px);
+  left: 50%;
+  right: auto;
+  transform: translateX(-50%);
+  max-width: 58vw;
+  padding: 7px 10px;
+  border-radius: 14px;
+  font-size: 0.58rem;
+}
+
+body.tr-mobile .wrong-way-chip {
+  top: calc(var(--tr-safe-top) + 110px);
+  max-width: 74vw;
+  padding: 7px 11px;
+}
+
+body.tr-mobile .decision-card {
+  top: 50%;
+  left: 50%;
+  width: min(92vw, 520px);
+  max-height: calc(var(--tr-vh) - var(--tr-safe-top) - var(--tr-safe-bottom) - 92px);
+  padding: 18px;
+  border-radius: 24px;
+  overflow-y: auto;
+  transform: translate(-50%, -54%);
+  touch-action: pan-y;
+}
+
+body.tr-mobile .decision-card h2 {
+  font-size: clamp(1.25rem, 6vw, 1.7rem);
+}
+
+body.tr-mobile .decision-card__options {
+  grid-template-columns: 1fr;
+  gap: 8px;
+}
+
+body.tr-mobile .decision-option {
+  min-height: 78px;
+  padding: 11px 12px 11px 48px;
+}
+
+body.tr-mobile .decision-card__hint,
+body.tr-mobile .decision-option__key {
+  display: none;
+}
+
+/* Menus de pausa/resultados precisam caber sem zoom do navegador. */
+body.tr-mobile .pause-menu,
+body.tr-mobile .results-menu {
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
+  align-items: flex-start;
+  padding-top: calc(var(--tr-safe-top) + 18px);
+  padding-bottom: calc(var(--tr-safe-bottom) + 18px);
+}
+
+body.tr-mobile .pause-panel,
+body.tr-mobile .results-panel {
+  width: min(100%, 620px);
+  margin: auto;
+  border-radius: 26px;
+  padding: clamp(16px, 4vw, 22px);
+}
+
+body.tr-mobile .pause-actions,
+body.tr-mobile .results-actions {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+}
+
+body.tr-mobile .results-columns {
+  grid-template-columns: 1fr;
+  gap: 10px;
+}
+
+body.tr-mobile .results-card,
+body.tr-mobile .decision-recap {
+  padding: 12px;
+  border-radius: 18px;
+}
+
+/* Controle touch reconstruído para os polegares. */
+body.tr-mobile .touch-controls {
+  z-index: 34;
+}
+
+body.tr-mobile .touch-controls button,
+body.tr-mobile .touch-steering {
+  -webkit-tap-highlight-color: transparent;
+}
+
+body.tr-mobile .touch-steering {
+  left: var(--tr-safe-left);
+  bottom: var(--tr-safe-bottom);
+  width: clamp(118px, 31vw, 152px);
+  height: clamp(92px, 24vw, 120px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 32px;
+  background: radial-gradient(circle at 50% 50%, rgba(78, 240, 160, 0.12), rgba(5, 24, 13, 0.55) 64%);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.04), 0 12px 30px rgba(0, 0, 0, 0.18);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  pointer-events: auto;
+  touch-action: none;
+  overflow: hidden;
+}
+
+body.tr-mobile .touch-wheel__axis {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  top: 50%;
+  height: 2px;
+  transform: translateY(-50%);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.16);
+}
+
+body.tr-mobile .touch-wheel__knob {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 52px;
+  height: 52px;
+  transform: translate(-50%, -50%);
+  border: 1px solid rgba(126, 255, 188, 0.55);
+  border-radius: 50%;
+  background: rgba(11, 79, 45, 0.88);
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.25), inset 0 0 18px rgba(126, 255, 188, 0.16);
+  transition: transform 55ms linear;
+  pointer-events: none;
+}
+
+body.tr-mobile .touch-wheel__label {
+  position: absolute;
+  left: 50%;
+  bottom: 7px;
+  transform: translateX(-50%);
+  color: rgba(239, 255, 244, 0.5);
+  font-size: 0.48rem;
+  font-weight: 850;
+  letter-spacing: 0.08em;
+  pointer-events: none;
+}
+
+body.tr-mobile .touch-pedals {
+  right: var(--tr-safe-right);
+  bottom: var(--tr-safe-bottom);
+  gap: 8px;
+  align-items: flex-end;
+}
+
+body.tr-mobile .touch-pedal--gas {
+  width: clamp(78px, 20vw, 96px);
+  height: clamp(90px, 23vw, 112px);
+  border-radius: 30px;
+}
+
+body.tr-mobile .touch-pedal--brake {
+  width: clamp(62px, 16vw, 76px);
+  height: clamp(68px, 18vw, 84px);
+  border-radius: 25px;
+}
+
+body.tr-mobile .touch-actions {
+  right: var(--tr-safe-right);
+  bottom: calc(var(--tr-safe-bottom) + clamp(102px, 26vw, 124px));
+  gap: 7px;
+}
+
+body.tr-mobile .touch-action {
+  width: clamp(58px, 15vw, 72px);
+  height: clamp(50px, 13vw, 62px);
+  border-radius: 20px;
+}
+
+body.tr-mobile .touch-finance {
+  left: var(--tr-safe-left);
+  bottom: calc(var(--tr-safe-bottom) + clamp(102px, 27vw, 128px));
+  gap: 6px;
+}
+
+body.tr-mobile .touch-finance button {
+  min-width: 58px;
+  min-height: 42px;
+  border-radius: 16px;
+}
+
+body.tr-mobile .touch-pause {
+  top: calc(var(--tr-safe-top) + 48px);
+  left: auto;
+  right: var(--tr-safe-right);
+  width: 44px;
+  height: 40px;
+  transform: none;
+  border-radius: 15px;
+}
+
+body.tr-mobile .touch-pause.is-pressed {
+  transform: scale(0.94) !important;
+}
+
+body.tr-mobile .touch-decisions {
+  left: 50%;
+  bottom: var(--tr-safe-bottom);
+  width: min(94vw, 560px);
+  gap: 8px;
+}
+
+body.tr-mobile .touch-decisions button {
+  min-height: 58px;
+  border-radius: 19px;
+}
+
+body.tr-mobile .touch-orientation {
+  top: calc(var(--tr-safe-top) + 104px);
+  max-width: 72vw;
+}
+
+/* Retrato continua jogável, mas é reorganizado em vez de apenas encolhido. */
+body.tr-mobile.tr-portrait .race-chip {
+  max-width: 52vw;
+}
+
+body.tr-mobile.tr-portrait .wallet-chip {
+  top: calc(var(--tr-safe-top) + 60px);
+  max-width: 48vw;
+  grid-template-columns: 1fr;
+  gap: 2px;
+}
+
+body.tr-mobile.tr-portrait .item-chip {
+  top: calc(var(--tr-safe-top) + 65px);
+  max-width: 47vw;
+}
+
+body.tr-mobile.tr-portrait .touch-steering {
+  width: min(36vw, 138px);
+  height: min(28vw, 104px);
+}
+
+body.tr-mobile.tr-portrait .touch-pedal--gas {
+  width: min(23vw, 88px);
+  height: min(27vw, 102px);
+}
+
+body.tr-mobile.tr-portrait .touch-pedal--brake {
+  width: min(18vw, 70px);
+  height: min(20vw, 76px);
+}
+
+body.tr-mobile.tr-portrait .touch-actions {
+  bottom: calc(var(--tr-safe-bottom) + min(29vw, 110px));
+}
+
+body.tr-mobile.tr-portrait .touch-finance {
+  bottom: calc(var(--tr-safe-bottom) + min(30vw, 116px));
+}
+
+body.tr-mobile.tr-portrait .speed-chip {
+  bottom: calc(var(--tr-safe-bottom) + 6px);
+}
+
+body.tr-mobile.tr-portrait .drift-chip {
+  bottom: calc(var(--tr-safe-bottom) + 63px);
+}
+
+body.tr-mobile.tr-portrait .touch-orientation {
+  display: block;
+}
+
+/* Paisagem baixa: preserve a pista, reduza texto secundário. */
+body.tr-mobile.tr-landscape.tr-short-screen .game-menu {
+  padding-top: var(--tr-safe-top);
+}
+
+body.tr-mobile.tr-landscape.tr-short-screen .game-menu__panel {
+  width: min(92vw, 760px);
+  padding: 12px 16px;
+}
+
+body.tr-mobile.tr-landscape.tr-short-screen .menu-copy p,
+body.tr-mobile.tr-landscape.tr-short-screen .controls-drawer,
+body.tr-mobile.tr-landscape.tr-short-screen .race-select-card__stats span:nth-child(n+3) {
+  display: none;
+}
+
+body.tr-mobile.tr-landscape.tr-short-screen .track-selector__grid {
+  grid-auto-columns: minmax(180px, 34vw);
+}
+
+body.tr-mobile.tr-landscape.tr-short-screen .touch-steering {
+  width: 124px;
+  height: 82px;
+  border-radius: 27px;
+}
+
+body.tr-mobile.tr-landscape.tr-short-screen .touch-pedal--gas {
+  width: 74px;
+  height: 84px;
+}
+
+body.tr-mobile.tr-landscape.tr-short-screen .touch-pedal--brake {
+  width: 58px;
+  height: 62px;
+}
+
+body.tr-mobile.tr-landscape.tr-short-screen .touch-actions,
+body.tr-mobile.tr-landscape.tr-short-screen .touch-finance {
+  bottom: calc(var(--tr-safe-bottom) + 82px);
+}
+
+body.tr-mobile.tr-landscape.tr-short-screen .speed-chip {
+  bottom: calc(var(--tr-safe-bottom) + 2px);
+}
+
+body.tr-mobile.tr-landscape.tr-short-screen .drift-chip {
+  bottom: calc(var(--tr-safe-bottom) + 52px);
+}
+
+body.tr-mobile-economy .touch-controls button,
+body.tr-mobile-economy .touch-steering,
+body.tr-mobile-economy .race-chip,
+body.tr-mobile-economy .wallet-chip,
+body.tr-mobile-economy .item-chip,
+body.tr-mobile-economy .speed-chip,
+body.tr-mobile-economy .drift-chip {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  box-shadow: none !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body.tr-mobile .touch-wheel__knob,
+  body.tr-mobile .mobile-companion button {
+    transition: none;
+  }
+}
