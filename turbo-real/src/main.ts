@@ -72,8 +72,14 @@ async function bootstrap(root: HTMLElement): Promise<void> {
       activeSession = { game, hud };
       game.start();
     } catch (error) {
-      physics?.dispose();
-      hud.dispose();
+      if (activeSession !== null) {
+        activeSession.game.dispose();
+        activeSession.hud.dispose();
+        activeSession = null;
+      } else {
+        physics?.dispose();
+        hud.dispose();
+      }
       root.replaceChildren();
       ui.showMenu();
       throw error;
@@ -84,6 +90,7 @@ async function bootstrap(root: HTMLElement): Promise<void> {
   }
 
   function exitToMenu(): void {
+    if (starting) return;
     disposeSession();
     ui.showMenu();
   }
