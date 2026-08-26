@@ -2,31 +2,40 @@
 
 Kart racer arcade 3D original sobre educação financeira no Brasil. O projeto se inspira no ritmo e na acessibilidade dos kart racers, sem copiar personagens, pistas, assets ou identidade visual de franquias existentes.
 
-## Fase 2 - Drift, colisões e física arcade
+## Fase 3 - Primeira pista completa
 
-A Fase 2 substitui o movimento puramente cinemático da etapa anterior por um corpo rígido controlado pelo Rapier, mantendo as regras de jogo separadas do Three.js.
+A Fase 3 aposenta a reta de engenharia e entrega o primeiro circuito fechado original do projeto: **Avenida do Troco**.
+
+### Avenida do Troco
+
+Circuito urbano-futurista brasileiro com aproximadamente 120 amostras de trajetória geradas a partir de uma spline Catmull-Rom fechada. Todo o circuito e o cenário desta fase são procedurais, sem depender de assets 3D externos.
+
+O traçado tem:
+
+- reta de largada larga;
+- curva longa de alta velocidade;
+- dois setores apropriados para carregar drift;
+- sequência de curvas de raio menor;
+- retorno progressivo para a reta principal;
+- largura útil consistente para ultrapassagens futuras.
 
 ### Entregue
 
-- `@dimforge/rapier3d-compat` como motor de física 3D;
-- simulação em timestep fixo de 60 Hz;
-- corpo rígido dinâmico para o kart com CCD habilitado;
-- rotações X/Z bloqueadas para estabilidade arcade, preservando rotação em Y;
-- gravidade, contato com o solo e colisões físicas;
-- barreiras laterais e de fim de pista;
-- dois obstáculos físicos para teste de impacto;
-- aceleração, frenagem, ré e resistência refinadas;
-- aderência lateral independente da velocidade longitudinal;
-- drift com `Shift` durante curvas acima da velocidade mínima;
-- perda controlada de aderência durante drift;
-- carga de drift convertida em mini-boost ao soltar `Shift`;
-- velocidade máxima maior durante boost;
-- feedback de impacto no HUD e câmera;
-- rodas girando, inclinação visual, faíscas de drift e chamas de boost;
-- câmera de perseguição adaptada a derrapagem e turbo;
-- HUD com barra de carga de drift e duração do boost;
-- fallback visível caso a inicialização do WebAssembly falhe;
-- workflow de CI dedicado a `turbo-real/` com typecheck e build.
+- definição da pista independente de Three.js e Rapier;
+- spline fechada compartilhada por física e renderização;
+- malha de asfalto construída proceduralmente;
+- zebras verdes e amarelas ao longo das duas bordas;
+- barreiras visuais instanciadas;
+- barreiras físicas derivadas dos mesmos pontos da pista;
+- um único corpo estático Rapier com centenas de colliders leves;
+- grid quadriculado de largada;
+- pórtico de largada em verde e amarelo;
+- praça central, palmeiras e prédios low-poly procedurais;
+- cenário ampliado e fog/câmera adaptados ao circuito;
+- spawn alinhado automaticamente à tangente da pista;
+- correção do sinal visual de rotação do kart em curvas;
+- HUD atualizado para a Avenida do Troco;
+- física, drift e mini-boost da Fase 2 preservados.
 
 ## Controles
 
@@ -38,7 +47,7 @@ A Fase 2 substitui o movimento puramente cinemático da etapa anterior por um co
 | Virar à direita | `D` ou `→` |
 | Drift | `Shift` esquerdo ou direito + curva |
 
-Para carregar turbo, entre numa curva com velocidade suficiente, segure `Shift` enquanto esterça e solte depois de acumular carga. Cargas maiores geram boosts mais longos.
+Para carregar turbo, entre numa curva com velocidade suficiente, segure `Shift` enquanto esterça e solte depois de acumular carga.
 
 ## Executar
 
@@ -64,38 +73,28 @@ src/
 │   ├── actions.ts
 │   └── KeyboardInput.ts
 ├── physics/
-│   └── KartPhysics.ts          # Rapier, timestep, corpo rígido e colisores
+│   └── KartPhysics.ts             # Rapier, kart e colliders da pista
 ├── render/
-│   ├── app/GameApp.ts          # cena e sincronização visual
+│   ├── app/GameApp.ts
 │   ├── camera/ChaseCamera.ts
-│   └── objects/createKart.ts
+│   ├── objects/createKart.ts
+│   └── track/createTrackScene.ts  # asfalto, zebras, barreiras e cenário
 ├── simulation/
-│   ├── state.ts                # estado serializável
-│   └── vehicle.ts              # tipos e tuning arcade
+│   ├── state.ts
+│   └── vehicle.ts
+├── track/
+│   └── firstTrack.ts              # fonte de verdade geométrica do circuito
 └── ui/createHud.ts
 ```
 
-O Rapier pertence à camada de física, não ao renderer. Three.js continua apenas representando visualmente o estado produzido pela simulação física.
+A principal regra da Fase 3 é que a pista não existe duas vezes. `firstTrack.ts` produz os mesmos pontos, tangentes, bordas e barreiras usados tanto por Three.js quanto pelo Rapier.
 
-## Modelo de direção
+## Limite intencional da Fase 3
 
-O projeto usa um modelo híbrido de kart arcade:
-
-1. Rapier resolve gravidade, integração, contato, obstáculos e paredes.
-2. O controlador de veículo decompõe a velocidade em componentes longitudinal e lateral.
-3. A aceleração atua no eixo longitudinal do kart.
-4. A aderência reduz a velocidade lateral normalmente.
-5. Durante drift essa aderência cai, mantendo o vetor de movimento deslizando enquanto o corpo gira.
-6. Ao terminar um drift válido, a carga acumulada vira um boost temporário.
-
-Isso evita tanto um kart preso a trilhos quanto um veículo excessivamente realista e pouco divertido.
-
-## Limite intencional da Fase 2
-
-Ainda não existem pista de corrida final, checkpoints, contagem de voltas, colocação real, IA, itens, economia interativa, áudio ou multiplayer. A reta atual continua sendo uma pista de engenharia para validar dirigibilidade e colisões.
+O circuito já é fechado e dirigível, mas ainda não existem checkpoints, detecção de volta completa, posição real de corrida, IA, itens ou economia interativa. Esses sistemas não foram antecipados para evitar misturar responsabilidades.
 
 ## Próxima fase
 
-**Fase 3: primeira pista completa.**
+**Fase 4: checkpoints, voltas e colocação.**
 
-O próximo objetivo é substituir a reta de testes por um circuito fechado original, com curvas projetadas para drift, leitura de trajetória e futuras decisões financeiras.
+O próximo objetivo é transformar o circuito fechado em uma corrida formal: validar ordem de checkpoints, contar voltas, detectar direção errada e preparar um sistema de classificação para os futuros adversários.

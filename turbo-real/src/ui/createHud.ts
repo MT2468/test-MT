@@ -19,15 +19,15 @@ export function createHud(host: HTMLElement, initialState: GameState): HudContro
       <span class="brand-chip__flag" aria-hidden="true">◆</span>
       <div>
         <strong>TURBO REAL</strong>
-        <span>Corrida financeira brasileira</span>
+        <span>Avenida do Troco</span>
       </div>
     </section>
 
     <section class="status-chip">
       <span class="status-chip__dot" aria-hidden="true"></span>
       <div>
-        <strong>Fase 2 · Física arcade</strong>
-        <span>Rapier + colisões + drift</span>
+        <strong>Fase 3 · Circuito completo</strong>
+        <span>pista fechada + curvas de drift</span>
       </div>
     </section>
 
@@ -64,7 +64,7 @@ export function createHud(host: HTMLElement, initialState: GameState): HudContro
   const driftChip = hud.querySelector<HTMLElement>('.drift-chip');
   const speedChip = hud.querySelector<HTMLElement>('.speed-chip');
   if (!speed || !direction || !driftLabel || !driftValue || !driftFill || !driftChip || !speedChip) {
-    throw new Error('HUD da Fase 2 incompleto.');
+    throw new Error('HUD da Fase 3 incompleto.');
   }
 
   const controller: HudController = {

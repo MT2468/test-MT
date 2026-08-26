@@ -2,12 +2,14 @@ import * as THREE from 'three';
 import { KeyboardInput } from '../../input/KeyboardInput';
 import { KartPhysics } from '../../physics/KartPhysics';
 import type { GameState } from '../../simulation/state';
+import type { TrackDefinition } from '../../track/firstTrack';
 import { ChaseCamera } from '../camera/ChaseCamera';
 import { createKart } from '../objects/createKart';
+import { createTrackScene } from '../track/createTrackScene';
 
 export class GameApp {
   private readonly scene = new THREE.Scene();
-  private readonly camera = new THREE.PerspectiveCamera(56, 1, 0.1, 340);
+  private readonly camera = new THREE.PerspectiveCamera(56, 1, 0.1, 520);
   private readonly renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
   private readonly kart = createKart();
   private readonly input = new KeyboardInput();
@@ -19,10 +21,11 @@ export class GameApp {
     private readonly container: HTMLElement,
     private readonly state: GameState,
     private readonly physics: KartPhysics,
+    track: TrackDefinition,
     private readonly onStateUpdate: (state: GameState) => void = () => {},
   ) {
     this.scene.background = new THREE.Color(0x8fd8ff);
-    this.scene.fog = new THREE.Fog(0x8fd8ff, 70, 210);
+    this.scene.fog = new THREE.Fog(0x8fd8ff, 115, 350);
 
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -32,7 +35,7 @@ export class GameApp {
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.container.append(this.renderer.domElement);
 
-    this.buildPracticeScene();
+    this.buildCircuitScene(track);
     this.syncKart(0);
     this.chaseCamera.reset(this.state.vehicle);
 
@@ -62,102 +65,24 @@ export class GameApp {
     this.renderer.domElement.remove();
   }
 
-  private buildPracticeScene(): void {
-    this.scene.add(new THREE.HemisphereLight(0xeaf8ff, 0x154425, 2.1));
+  private buildCircuitScene(track: TrackDefinition): void {
+    this.scene.add(new THREE.HemisphereLight(0xeaf8ff, 0x154425, 2.25));
 
-    const sun = new THREE.DirectionalLight(0xffffff, 3.2);
-    sun.position.set(-18, 24, 14);
+    const sun = new THREE.DirectionalLight(0xffffff, 3.35);
+    sun.position.set(-72, 110, 48);
     sun.castShadow = true;
-    sun.shadow.mapSize.set(1024, 1024);
-    sun.shadow.camera.near = 1;
-    sun.shadow.camera.far = 90;
-    sun.shadow.camera.left = -36;
-    sun.shadow.camera.right = 36;
-    sun.shadow.camera.top = 36;
-    sun.shadow.camera.bottom = -36;
+    sun.shadow.mapSize.set(2048, 2048);
+    sun.shadow.camera.near = 5;
+    sun.shadow.camera.far = 300;
+    sun.shadow.camera.left = -145;
+    sun.shadow.camera.right = 145;
+    sun.shadow.camera.top = 145;
+    sun.shadow.camera.bottom = -145;
+    sun.shadow.bias = -0.00012;
     this.scene.add(sun);
 
-    const grass = new THREE.Mesh(
-      new THREE.PlaneGeometry(110, 330),
-      new THREE.MeshStandardMaterial({ color: 0x257b43, roughness: 1 }),
-    );
-    grass.rotation.x = -Math.PI / 2;
-    grass.receiveShadow = true;
-    this.scene.add(grass);
-
-    const road = new THREE.Mesh(
-      new THREE.PlaneGeometry(18, 300),
-      new THREE.MeshStandardMaterial({ color: 0x2c3038, roughness: 0.96 }),
-    );
-    road.rotation.x = -Math.PI / 2;
-    road.position.y = 0.015;
-    road.receiveShadow = true;
-    this.scene.add(road);
-
-    const stripeGeometry = new THREE.BoxGeometry(0.18, 0.035, 3.4);
-    const stripeMaterial = new THREE.MeshStandardMaterial({ color: 0xffe36b, roughness: 0.75 });
-    for (let z = -138; z <= 138; z += 8) {
-      const stripe = new THREE.Mesh(stripeGeometry, stripeMaterial);
-      stripe.position.set(0, 0.045, z);
-      stripe.receiveShadow = true;
-      this.scene.add(stripe);
-    }
-
-    const barrierMaterial = new THREE.MeshStandardMaterial({ color: 0xf3f5f7, roughness: 0.78 });
-    for (const x of [-9.35, 9.35]) {
-      const barrier = new THREE.Mesh(new THREE.BoxGeometry(0.56, 1.1, 300), barrierMaterial);
-      barrier.position.set(x, 0.55, 0);
-      barrier.receiveShadow = true;
-      barrier.castShadow = true;
-      this.scene.add(barrier);
-    }
-
-    const startLine = new THREE.Mesh(
-      new THREE.BoxGeometry(17.6, 0.04, 0.8),
-      new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.8 }),
-    );
-    startLine.position.set(0, 0.05, 22);
-    startLine.receiveShadow = true;
-    this.scene.add(startLine);
-
-    this.addPracticeGate(-85);
-    this.addPracticeGate(85);
-    this.addCollisionBlock(-3.4, -36);
-    this.addCollisionBlock(3.4, -58);
+    this.scene.add(createTrackScene(track));
     this.scene.add(this.kart.group);
-  }
-
-  private addPracticeGate(z: number): void {
-    const postMaterial = new THREE.MeshStandardMaterial({ color: 0x1ba65a, roughness: 0.55 });
-    const beamMaterial = new THREE.MeshStandardMaterial({ color: 0xf7c948, roughness: 0.55 });
-
-    for (const x of [-10.8, 10.8]) {
-      const post = new THREE.Mesh(new THREE.BoxGeometry(0.55, 5.5, 0.55), postMaterial);
-      post.position.set(x, 2.75, z);
-      post.castShadow = true;
-      this.scene.add(post);
-    }
-
-    const beam = new THREE.Mesh(new THREE.BoxGeometry(22.2, 0.55, 0.55), beamMaterial);
-    beam.position.set(0, 5.3, z);
-    beam.castShadow = true;
-    this.scene.add(beam);
-  }
-
-  private addCollisionBlock(x: number, z: number): void {
-    const block = new THREE.Mesh(
-      new THREE.BoxGeometry(2.5, 1.4, 3.6),
-      new THREE.MeshStandardMaterial({
-        color: 0xff8a2b,
-        emissive: 0x8a2600,
-        emissiveIntensity: 0.28,
-        roughness: 0.62,
-      }),
-    );
-    block.position.set(x, 0.7, z);
-    block.castShadow = true;
-    block.receiveShadow = true;
-    this.scene.add(block);
   }
 
   private render(time: number): void {
@@ -174,10 +99,10 @@ export class GameApp {
   private syncKart(deltaSeconds: number): void {
     const { vehicle } = this.state;
     this.kart.group.position.set(vehicle.x, vehicle.y, vehicle.z);
-    this.kart.group.rotation.y = vehicle.heading;
+    this.kart.group.rotation.y = -vehicle.heading;
     this.kart.updateMotion({
       speed: vehicle.speed,
-      steering: vehicle.steering,
+      steering: -vehicle.steering,
       drifting: vehicle.drifting,
       lateralSpeed: vehicle.lateralSpeed,
       boostRemaining: vehicle.boostRemaining,
