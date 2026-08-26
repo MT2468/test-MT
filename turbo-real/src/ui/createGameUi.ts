@@ -16,6 +16,12 @@ function isEditableTarget(target: EventTarget | null): boolean {
   return target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || (target instanceof HTMLElement && target.isContentEditable);
 }
 
+function getConnectedGamepad(): Gamepad | null {
+  if (typeof navigator.getGamepads !== 'function') return null;
+  const pads = Array.from(navigator.getGamepads()).filter((pad): pad is Gamepad => pad !== null && pad.connected);
+  return pads.find((pad) => pad.mapping === 'standard') ?? pads[0] ?? null;
+}
+
 export interface GameUiActions {
   readonly onStart: () => void | Promise<void>;
   readonly onResume: () => void;
@@ -38,21 +44,25 @@ export function createGameUi(host: HTMLElement, track: TrackDefinition, actions:
       <div class="game-menu__glow" aria-hidden="true"></div>
       <div class="game-menu__panel">
         <div class="game-logo"><span class="game-logo__mark">◆</span><div><small>CORRIDA FINANCEIRA BRASILEIRA</small><h1>TURBO REAL</h1></div></div>
-        <div class="menu-copy"><span class="menu-kicker">FASE 9 · CORRIDA RÁPIDA</span><h2>Velocidade agora. Consequência depois.</h2><p>Corra três voltas administrando reserva, custos, itens e escolhas financeiras.</p></div>
+        <div class="menu-copy"><span class="menu-kicker">FASE 11 · MOBILE + GAMEPAD</span><h2>Velocidade agora. Consequência depois.</h2><p>Corra três voltas administrando reserva, custos, itens e escolhas financeiras.</p></div>
         <article class="race-select-card"><div class="race-select-card__top"><span>SELECIONADO</span><strong data-track-name></strong></div><p data-track-subtitle></p><div class="race-select-card__stats"><span><strong data-track-laps></strong> voltas</span><span><strong>8</strong> pilotos</span><span><strong>4</strong> itens</span><span><strong>3</strong> decisões</span></div></article>
-        <button class="menu-primary" type="button" data-start-race><span>LARGAR</span><small>Enter</small></button>
-        <details class="controls-drawer"><summary>Controles e regras rápidas</summary><div class="controls-grid"><span><kbd>WASD</kbd> dirigir</span><span><kbd>Shift</kbd> drift</span><span><kbd>Espaço</kbd> item</span><span><kbd>E / Q</kbd> reserva</span><span><kbd>1 / 2</kbd> decisões</span><span><kbd>Esc</kbd> pausa</span></div></details>
+        <button class="menu-primary" type="button" data-start-race><span>LARGAR</span><small>Enter / A</small></button>
+        <details class="controls-drawer"><summary>Controles por dispositivo</summary><div class="input-guide">
+          <div class="input-guide__row"><strong>TECLADO</strong><span>WASD/setas dirigir · Shift drift · Espaço item · E/Q reserva · 1/2 decisões · Esc pausa.</span></div>
+          <div class="input-guide__row"><strong>GAMEPAD</strong><span>Analógico/D-pad direção · RT acelera · LT freia · A drift · X item · Y/B reserva · Start pausa. Em decisões, A/B escolhem 1/2.</span></div>
+          <div class="input-guide__row"><strong>TOQUE</strong><span>Controles aparecem automaticamente em telas touch. Direção à esquerda, pedais à direita, drift/item acima e escolhas em botões próprios.</span></div>
+        </div></details>
       </div>
       <footer class="menu-footer">Protótipo jogável · valores financeiros fictícios de gameplay</footer>
     </section>
 
-    <section class="pause-menu game-surface" data-pause-menu hidden aria-label="Jogo pausado"><div class="pause-panel"><span class="menu-kicker">CORRIDA CONGELADA</span><h2>PAUSA</h2><p data-pause-status></p><div class="pause-actions"><button class="menu-primary" type="button" data-resume>CONTINUAR <small>Esc</small></button><button class="menu-secondary" type="button" data-restart>REINICIAR CORRIDA</button><button class="menu-ghost" type="button" data-exit-menu>VOLTAR AO MENU</button></div><div class="pause-controls">WASD dirigir · Shift drift · Espaço item · E/Q reserva</div></div></section>
+    <section class="pause-menu game-surface" data-pause-menu hidden aria-label="Jogo pausado"><div class="pause-panel"><span class="menu-kicker">CORRIDA CONGELADA</span><h2>PAUSA</h2><p data-pause-status></p><div class="pause-actions"><button class="menu-primary" type="button" data-resume>CONTINUAR <small>Esc / Start</small></button><button class="menu-secondary" type="button" data-restart>REINICIAR CORRIDA</button><button class="menu-ghost" type="button" data-exit-menu>VOLTAR AO MENU</button></div><div class="pause-controls">Teclado: Esc · Controle: Start/A · Toque: botões deste menu</div></div></section>
 
     <section class="results-menu game-surface" data-results-menu hidden aria-label="Resultados da corrida"><div class="results-panel">
       <header class="results-hero"><div><span class="menu-kicker">BANDEIRADA</span><h2 data-result-position></h2><p data-result-time></p></div><div class="results-best"><small>MELHOR VOLTA</small><strong data-result-best></strong></div></header>
       <div class="results-columns"><section class="results-card"><h3>CLASSIFICAÇÃO</h3><ol class="standings-list" data-standings></ol></section><section class="results-card"><h3>FECHAMENTO FINANCEIRO</h3><div class="finance-summary"><span>Saldo <strong data-result-balance></strong></span><span>Reserva <strong data-result-reserve></strong></span><span>Dívida <strong data-result-debt></strong></span><span>Patrimônio <strong data-result-net-worth></strong></span><span>Custos das escolhas <strong data-result-decision-costs></strong></span><small data-result-protected></small></div></section></div>
       <section class="decision-recap"><h3>SUAS ESCOLHAS</h3><div data-decision-history></div></section>
-      <div class="results-actions"><button class="menu-primary" type="button" data-race-again>CORRER DE NOVO <small>Enter</small></button><button class="menu-secondary" type="button" data-results-menu-button>MENU PRINCIPAL</button></div>
+      <div class="results-actions"><button class="menu-primary" type="button" data-race-again>CORRER DE NOVO <small>Enter / A</small></button><button class="menu-secondary" type="button" data-results-menu-button>MENU PRINCIPAL</button></div>
     </div></section>
   `;
   host.append(shell);
@@ -84,7 +94,7 @@ export function createGameUi(host: HTMLElement, track: TrackDefinition, actions:
   const trackLaps = get<HTMLElement>('[data-track-laps]');
 
   const required = [mainMenu, pauseMenu, resultsMenu, startButton, resumeButton, restartButton, exitButton, raceAgainButton, resultMenuButton, pauseStatus, resultPosition, resultTime, resultBest, standings, resultBalance, resultReserve, resultDebt, resultNetWorth, resultDecisionCosts, resultProtected, decisionHistory, trackName, trackSubtitle, trackLaps];
-  if (required.some((element) => element === null)) throw new Error('UI da Fase 9 incompleta.');
+  if (required.some((element) => element === null)) throw new Error('UI da Fase 11 incompleta.');
 
   trackName!.textContent = track.name;
   trackSubtitle!.textContent = track.subtitle;
@@ -92,10 +102,55 @@ export function createGameUi(host: HTMLElement, track: TrackDefinition, actions:
 
   let surface: 'menu' | 'race' | 'pause' | 'results' = 'menu';
   let busy = false;
+  let gamepadFrame = 0;
+  let previousUiButtons: boolean[] = [];
+  let analogLatch = 0;
 
   function run(action: () => void | Promise<void>): void {
     if (busy) return;
     void Promise.resolve(action()).catch((error: unknown) => console.error('Falha em ação de menu:', error));
+  }
+
+  function clearGamepadFocus(): void {
+    for (const button of shell.querySelectorAll<HTMLButtonElement>('button.is-gamepad-focused')) {
+      button.classList.remove('is-gamepad-focused');
+    }
+  }
+
+  function activeSurface(): HTMLElement | null {
+    if (surface === 'menu') return mainMenu;
+    if (surface === 'pause') return pauseMenu;
+    if (surface === 'results') return resultsMenu;
+    return null;
+  }
+
+  function activeButtons(): HTMLButtonElement[] {
+    const container = activeSurface();
+    if (container === null) return [];
+    return Array.from(container.querySelectorAll<HTMLButtonElement>('button:not(:disabled)'));
+  }
+
+  function focusRelative(direction: number): void {
+    const buttons = activeButtons();
+    if (buttons.length === 0) return;
+    const currentIndex = buttons.findIndex((button) => button.classList.contains('is-gamepad-focused'));
+    const nextIndex = currentIndex < 0
+      ? direction < 0 ? buttons.length - 1 : 0
+      : (currentIndex + direction + buttons.length) % buttons.length;
+    clearGamepadFocus();
+    const target = buttons[nextIndex];
+    target.classList.add('is-gamepad-focused');
+    target.focus({ preventScroll: true });
+  }
+
+  function activateFocused(): void {
+    const buttons = activeButtons();
+    if (buttons.length === 0) return;
+    const focused = buttons.find((button) => button.classList.contains('is-gamepad-focused')) ?? buttons[0];
+    clearGamepadFocus();
+    focused.classList.add('is-gamepad-focused');
+    focused.focus({ preventScroll: true });
+    focused.click();
   }
 
   function setSurface(next: typeof surface): void {
@@ -104,6 +159,7 @@ export function createGameUi(host: HTMLElement, track: TrackDefinition, actions:
     pauseMenu!.hidden = next !== 'pause';
     resultsMenu!.hidden = next !== 'results';
     shell.classList.toggle('is-racing', next === 'race');
+    clearGamepadFocus();
   }
 
   function renderResults(state: GameState): void {
@@ -151,12 +207,54 @@ export function createGameUi(host: HTMLElement, track: TrackDefinition, actions:
     }
   }
 
+  function pollGamepadUi(): void {
+    const pad = getConnectedGamepad();
+    if (pad === null) {
+      previousUiButtons = [];
+      analogLatch = 0;
+      gamepadFrame = window.requestAnimationFrame(pollGamepadUi);
+      return;
+    }
+
+    const currentButtons = pad.buttons.map((button) => button.pressed || button.value >= 0.55);
+    const hasHistory = previousUiButtons.length === currentButtons.length && currentButtons.length > 0;
+    const justPressed = (index: number): boolean => hasHistory && currentButtons[index] === true && previousUiButtons[index] !== true;
+
+    if (surface !== 'race' && !busy) {
+      const digitalUp = justPressed(12) || justPressed(14);
+      const digitalDown = justPressed(13) || justPressed(15);
+      const axisY = pad.axes[1] ?? 0;
+      const analogDirection = axisY < -0.65 ? -1 : axisY > 0.65 ? 1 : 0;
+
+      if (digitalUp) focusRelative(-1);
+      else if (digitalDown) focusRelative(1);
+      else if (analogDirection !== 0 && analogLatch === 0) focusRelative(analogDirection);
+
+      if (Math.abs(axisY) < 0.35) analogLatch = 0;
+      else if (analogDirection !== 0) analogLatch = analogDirection;
+
+      if (justPressed(0)) activateFocused();
+      if (justPressed(9)) {
+        if (surface === 'menu') run(actions.onStart);
+        else if (surface === 'results') run(actions.onRestart);
+      }
+      if (justPressed(1)) {
+        if (surface === 'pause') actions.onResume();
+        else if (surface === 'results') actions.onExitToMenu();
+      }
+    }
+
+    previousUiButtons = currentButtons;
+    gamepadFrame = window.requestAnimationFrame(pollGamepadUi);
+  }
+
   startButton!.addEventListener('click', () => run(actions.onStart));
   resumeButton!.addEventListener('click', actions.onResume);
   restartButton!.addEventListener('click', () => run(actions.onRestart));
   exitButton!.addEventListener('click', actions.onExitToMenu);
   raceAgainButton!.addEventListener('click', () => run(actions.onRestart));
   resultMenuButton!.addEventListener('click', actions.onExitToMenu);
+  shell.addEventListener('pointerdown', clearGamepadFocus);
 
   const onKeyDown = (event: KeyboardEvent): void => {
     if (isEditableTarget(event.target) || event.repeat || event.code !== 'Enter') return;
@@ -169,6 +267,7 @@ export function createGameUi(host: HTMLElement, track: TrackDefinition, actions:
     }
   };
   window.addEventListener('keydown', onKeyDown);
+  gamepadFrame = window.requestAnimationFrame(pollGamepadUi);
 
   return {
     showMenu(): void {
@@ -195,6 +294,7 @@ export function createGameUi(host: HTMLElement, track: TrackDefinition, actions:
       startButton!.classList.toggle('is-loading', busy && surface === 'menu');
     },
     dispose(): void {
+      window.cancelAnimationFrame(gamepadFrame);
       window.removeEventListener('keydown', onKeyDown);
       shell.remove();
     },

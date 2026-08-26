@@ -4,6 +4,7 @@ import './items.css';
 import './finance.css';
 import './decisions.css';
 import './menus.css';
+import './controls.css';
 import { AudioDirector } from './audio/AudioDirector';
 import { KartPhysics } from './physics/KartPhysics';
 import { GameApp } from './render/app/GameApp';
