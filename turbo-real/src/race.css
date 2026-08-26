@@ -1,0 +1,181 @@
+.race-chip,
+.wrong-way-chip,
+.finish-chip {
+  width: fit-content;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(5, 19, 12, 0.76);
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.24);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.race-chip {
+  grid-column: 3;
+  grid-row: 1;
+  justify-self: end;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 186px;
+  padding: 9px 13px;
+  border-radius: 16px;
+}
+
+.race-chip > strong {
+  min-width: 48px;
+  color: #f7c948;
+  font-size: 1.7rem;
+  line-height: 1;
+  letter-spacing: -0.05em;
+  text-align: center;
+}
+
+.race-chip div {
+  display: grid;
+  gap: 2px;
+}
+
+.race-chip span {
+  font-size: 0.77rem;
+  font-weight: 850;
+  letter-spacing: 0.075em;
+}
+
+.race-chip small {
+  color: rgba(239, 255, 244, 0.68);
+  font-size: 0.66rem;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.wrong-way-chip {
+  position: fixed;
+  left: 50%;
+  top: 20%;
+  z-index: 12;
+  transform: translateX(-50%);
+  display: grid;
+  justify-items: center;
+  gap: 3px;
+  min-width: 220px;
+  padding: 11px 18px;
+  border-color: rgba(255, 89, 62, 0.7);
+  border-radius: 16px;
+  background: rgba(73, 14, 8, 0.84);
+  box-shadow: 0 18px 54px rgba(255, 65, 33, 0.2);
+  animation: wrong-way-pulse 0.7s ease-in-out infinite alternate;
+}
+
+.wrong-way-chip strong {
+  color: #ffb39f;
+  font-size: 0.88rem;
+  letter-spacing: 0.1em;
+}
+
+.wrong-way-chip span {
+  color: rgba(255, 235, 228, 0.78);
+  font-size: 0.7rem;
+}
+
+.finish-chip {
+  position: fixed;
+  left: 50%;
+  top: 45%;
+  z-index: 13;
+  transform: translate(-50%, -50%);
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  min-width: min(320px, calc(100vw - 36px));
+  padding: 20px 26px 18px;
+  border-color: rgba(247, 201, 72, 0.56);
+  border-radius: 22px;
+  background: rgba(4, 24, 13, 0.9);
+  box-shadow: 0 28px 90px rgba(0, 0, 0, 0.38), 0 0 42px rgba(247, 201, 72, 0.12);
+}
+
+.finish-chip > span {
+  color: #f7c948;
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.14em;
+}
+
+.finish-chip > strong {
+  font-size: clamp(1.8rem, 6vw, 3rem);
+  line-height: 1;
+  letter-spacing: -0.045em;
+}
+
+.finish-chip > small {
+  color: #7ff0b2;
+  font-size: 1rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.finish-chip > em {
+  color: rgba(239, 255, 244, 0.68);
+  font-size: 0.7rem;
+  font-style: normal;
+  font-variant-numeric: tabular-nums;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+@keyframes wrong-way-pulse {
+  from {
+    transform: translateX(-50%) scale(1);
+  }
+  to {
+    transform: translateX(-50%) scale(1.025);
+  }
+}
+
+@media (max-width: 760px) {
+  .race-chip {
+    grid-column: 2;
+    grid-row: 1;
+    min-width: 0;
+  }
+
+  .brand-chip {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .race-chip small {
+    display: none;
+  }
+
+  .race-chip > strong {
+    min-width: 38px;
+    font-size: 1.35rem;
+  }
+
+  .wrong-way-chip {
+    top: 24%;
+  }
+}
+
+@media (max-width: 520px) {
+  .brand-chip span:not(.brand-chip__flag) {
+    display: none;
+  }
+
+  .race-chip {
+    padding: 8px 10px;
+  }
+
+  .race-chip span {
+    font-size: 0.67rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wrong-way-chip {
+    animation: none;
+  }
+}

@@ -6,6 +6,14 @@ const brl = new Intl.NumberFormat('pt-BR', {
   maximumFractionDigits: 0,
 });
 
+function formatTime(totalSeconds: number): string {
+  const safeSeconds = Math.max(0, totalSeconds);
+  const minutes = Math.floor(safeSeconds / 60);
+  const seconds = Math.floor(safeSeconds % 60);
+  const milliseconds = Math.floor((safeSeconds % 1) * 1000);
+  return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}.${String(milliseconds).padStart(3, '0')}`;
+}
+
 export interface HudController {
   update(state: GameState): void;
   dispose(): void;
@@ -23,11 +31,11 @@ export function createHud(host: HTMLElement, initialState: GameState): HudContro
       </div>
     </section>
 
-    <section class="status-chip">
-      <span class="status-chip__dot" aria-hidden="true"></span>
+    <section class="race-chip" aria-label="Estado da corrida">
+      <strong data-position>1º</strong>
       <div>
-        <strong>Fase 3 · Circuito completo</strong>
-        <span>pista fechada + curvas de drift</span>
+        <span data-lap>VOLTA 1/3</span>
+        <small data-race-detail>SETOR 1/6 · 00:00.000</small>
       </div>
     </section>
 
@@ -53,6 +61,18 @@ export function createHud(host: HTMLElement, initialState: GameState): HudContro
       <div><strong data-speed>0</strong><span>km/h</span></div>
       <small data-direction>D · 0 m</small>
     </section>
+
+    <section class="wrong-way-chip" data-wrong-way hidden aria-live="assertive">
+      <strong>↺ DIREÇÃO ERRADA</strong>
+      <span>retorne ao sentido da pista</span>
+    </section>
+
+    <section class="finish-chip" data-finish hidden aria-live="polite">
+      <span>🏁 CHEGADA</span>
+      <strong data-finish-position>1º LUGAR</strong>
+      <small data-finish-time>00:00.000</small>
+      <em data-best-lap>Melhor volta · --:--.---</em>
+    </section>
   `;
   host.append(hud);
 
@@ -63,16 +83,47 @@ export function createHud(host: HTMLElement, initialState: GameState): HudContro
   const driftFill = hud.querySelector<HTMLElement>('[data-drift-fill]');
   const driftChip = hud.querySelector<HTMLElement>('.drift-chip');
   const speedChip = hud.querySelector<HTMLElement>('.speed-chip');
-  if (!speed || !direction || !driftLabel || !driftValue || !driftFill || !driftChip || !speedChip) {
-    throw new Error('HUD da Fase 3 incompleto.');
+  const position = hud.querySelector<HTMLElement>('[data-position]');
+  const lap = hud.querySelector<HTMLElement>('[data-lap]');
+  const raceDetail = hud.querySelector<HTMLElement>('[data-race-detail]');
+  const wrongWay = hud.querySelector<HTMLElement>('[data-wrong-way]');
+  const finish = hud.querySelector<HTMLElement>('[data-finish]');
+  const finishPosition = hud.querySelector<HTMLElement>('[data-finish-position]');
+  const finishTime = hud.querySelector<HTMLElement>('[data-finish-time]');
+  const bestLap = hud.querySelector<HTMLElement>('[data-best-lap]');
+
+  if (
+    !speed ||
+    !direction ||
+    !driftLabel ||
+    !driftValue ||
+    !driftFill ||
+    !driftChip ||
+    !speedChip ||
+    !position ||
+    !lap ||
+    !raceDetail ||
+    !wrongWay ||
+    !finish ||
+    !finishPosition ||
+    !finishTime ||
+    !bestLap
+  ) {
+    throw new Error('HUD da Fase 4 incompleto.');
   }
 
   const controller: HudController = {
     update(state): void {
-      const { vehicle } = state;
+      const { vehicle, race } = state;
       speed.textContent = String(Math.round(Math.abs(vehicle.speed) * 3.6));
       const gear = vehicle.speed < -0.1 ? 'R' : 'D';
       direction.textContent = `${gear} · ${Math.round(vehicle.distanceTravelled)} m`;
+
+      position.textContent = `${race.position}º`;
+      lap.textContent = `VOLTA ${race.lap}/${race.totalLaps}`;
+      const sector = race.finished ? race.checkpointCount : Math.min(race.checkpointsPassed + 1, race.checkpointCount);
+      raceDetail.textContent = `SETOR ${sector}/${race.checkpointCount} · ${formatTime(race.raceTimeSeconds)}`;
+      wrongWay.hidden = !race.wrongWay || race.finished;
 
       const chargePercent = Math.round(vehicle.driftCharge * 100);
       driftFill.style.transform = `scaleX(${vehicle.driftCharge})`;
@@ -89,6 +140,13 @@ export function createHud(host: HTMLElement, initialState: GameState): HudContro
         driftLabel.textContent = 'CARREGANDO';
       } else {
         driftLabel.textContent = 'DRIFT';
+      }
+
+      finish.hidden = !race.finished;
+      if (race.finished) {
+        finishPosition.textContent = `${race.position}º LUGAR`;
+        finishTime.textContent = formatTime(race.raceTimeSeconds);
+        bestLap.textContent = `Melhor volta · ${race.bestLapTimeSeconds === null ? '--:--.---' : formatTime(race.bestLapTimeSeconds)}`;
       }
     },
     dispose(): void {

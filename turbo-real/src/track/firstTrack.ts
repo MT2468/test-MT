@@ -29,6 +29,11 @@ export interface TrackBounds {
   readonly maxZ: number;
 }
 
+export interface TrackRaceConfig {
+  readonly totalLaps: number;
+  readonly checkpointSampleIndices: readonly number[];
+}
+
 export interface TrackDefinition {
   readonly id: string;
   readonly name: string;
@@ -38,6 +43,7 @@ export interface TrackDefinition {
   readonly samples: readonly TrackSample[];
   readonly spawn: TrackSpawn;
   readonly bounds: TrackBounds;
+  readonly race: TrackRaceConfig;
 }
 
 const CONTROL_POINTS: readonly TrackPoint[] = [
@@ -58,6 +64,8 @@ const CONTROL_POINTS: readonly TrackPoint[] = [
 const SAMPLES_PER_SEGMENT = 10;
 const HALF_WIDTH = 8.4;
 const BARRIER_OFFSET = 9.05;
+const CHECKPOINT_COUNT = 6;
+const TOTAL_LAPS = 3;
 
 function catmullRom(p0: TrackPoint, p1: TrackPoint, p2: TrackPoint, p3: TrackPoint, t: number): TrackPoint {
   const t2 = t * t;
@@ -155,6 +163,12 @@ function calculateBounds(samples: readonly TrackSample[]): TrackBounds {
   return { minX, maxX, minZ, maxZ };
 }
 
+function buildCheckpointIndices(sampleCount: number): readonly number[] {
+  return Object.freeze(
+    Array.from({ length: CHECKPOINT_COUNT }, (_, index) => Math.floor((index * sampleCount) / CHECKPOINT_COUNT)),
+  );
+}
+
 const samples = buildSamples();
 const start = samples[0];
 
@@ -171,4 +185,8 @@ export const FIRST_TRACK: TrackDefinition = Object.freeze({
     heading: Math.atan2(start.tangentX, -start.tangentZ),
   }),
   bounds: Object.freeze(calculateBounds(samples)),
+  race: Object.freeze({
+    totalLaps: TOTAL_LAPS,
+    checkpointSampleIndices: buildCheckpointIndices(samples.length),
+  }),
 });

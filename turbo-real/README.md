@@ -2,40 +2,42 @@
 
 Kart racer arcade 3D original sobre educação financeira no Brasil. O projeto se inspira no ritmo e na acessibilidade dos kart racers, sem copiar personagens, pistas, assets ou identidade visual de franquias existentes.
 
-## Fase 3 - Primeira pista completa
+## Fase 4 - Checkpoints, voltas e colocação
 
-A Fase 3 aposenta a reta de engenharia e entrega o primeiro circuito fechado original do projeto: **Avenida do Troco**.
+A Fase 4 transforma a **Avenida do Troco** de circuito dirigível em uma corrida formal de três voltas.
 
-### Avenida do Troco
+### Sistema de corrida
 
-Circuito urbano-futurista brasileiro com aproximadamente 120 amostras de trajetória geradas a partir de uma spline Catmull-Rom fechada. Todo o circuito e o cenário desta fase são procedurais, sem depender de assets 3D externos.
+A pista agora define sua própria configuração de prova:
 
-O traçado tem:
+- 3 voltas;
+- 6 setores por volta, incluindo a linha de chegada;
+- checkpoints distribuídos automaticamente pelas 120 amostras da spline;
+- ordem obrigatória de passagem;
+- cruzamento válido somente no sentido correto;
+- progresso legal calculado entre o último setor validado e o próximo;
+- colocação preparada para múltiplos competidores futuros.
 
-- reta de largada larga;
-- curva longa de alta velocidade;
-- dois setores apropriados para carregar drift;
-- sequência de curvas de raio menor;
-- retorno progressivo para a reta principal;
-- largura útil consistente para ultrapassagens futuras.
+Cruzar a linha de chegada sem passar pelos setores intermediários não conta volta. Cruzar um setor ao contrário também não conta.
 
 ### Entregue
 
-- definição da pista independente de Three.js e Rapier;
-- spline fechada compartilhada por física e renderização;
-- malha de asfalto construída proceduralmente;
-- zebras verdes e amarelas ao longo das duas bordas;
-- barreiras visuais instanciadas;
-- barreiras físicas derivadas dos mesmos pontos da pista;
-- um único corpo estático Rapier com centenas de colliders leves;
-- grid quadriculado de largada;
-- pórtico de largada em verde e amarelo;
-- praça central, palmeiras e prédios low-poly procedurais;
-- cenário ampliado e fog/câmera adaptados ao circuito;
-- spawn alinhado automaticamente à tangente da pista;
-- correção do sinal visual de rotação do kart em curvas;
-- HUD atualizado para a Avenida do Troco;
-- física, drift e mini-boost da Fase 2 preservados.
+- `RaceController` separado de física e renderização;
+- configuração de corrida armazenada na definição da pista;
+- checkpoints sequenciais com validação de cruzamento;
+- três voltas completas;
+- cronômetro total da corrida;
+- cronômetro por volta;
+- última volta e melhor volta;
+- estado de chegada;
+- detecção de direção errada com tolerância para drift;
+- progresso de corrida normalizado para classificação futura;
+- função genérica de ranking por progresso e tempo de chegada;
+- marcadores visuais discretos para os cinco checkpoints intermediários;
+- HUD com posição, volta, setor e tempo;
+- aviso central de direção errada;
+- painel de chegada com posição, tempo total e melhor volta;
+- física, drift, mini-boost e circuito procedural preservados.
 
 ## Controles
 
@@ -65,6 +67,8 @@ npm run typecheck
 npm run build
 ```
 
+O CI da Fase 4 deve validar compilação e tipos. O playtest funcional precisa confirmar, no navegador, pelo menos: checkpoints fora de ordem não contam, ré não valida setor, a terceira passagem correta pela chegada encerra a prova e o aviso de direção errada não dispara durante um drift normal.
+
 ## Arquitetura
 
 ```text
@@ -73,28 +77,42 @@ src/
 │   ├── actions.ts
 │   └── KeyboardInput.ts
 ├── physics/
-│   └── KartPhysics.ts             # Rapier, kart e colliders da pista
+│   └── KartPhysics.ts
 ├── render/
 │   ├── app/GameApp.ts
 │   ├── camera/ChaseCamera.ts
 │   ├── objects/createKart.ts
-│   └── track/createTrackScene.ts  # asfalto, zebras, barreiras e cenário
+│   ├── race/createRaceMarkers.ts
+│   └── track/createTrackScene.ts
 ├── simulation/
+│   ├── RaceController.ts       # regras da corrida e classificação
 │   ├── state.ts
 │   └── vehicle.ts
 ├── track/
-│   └── firstTrack.ts              # fonte de verdade geométrica do circuito
-└── ui/createHud.ts
+│   └── firstTrack.ts           # geometria + configuração da prova
+├── ui/createHud.ts
+├── race.css
+└── styles.css
 ```
 
-A principal regra da Fase 3 é que a pista não existe duas vezes. `firstTrack.ts` produz os mesmos pontos, tangentes, bordas e barreiras usados tanto por Three.js quanto pelo Rapier.
+A separação permanece deliberada:
 
-## Limite intencional da Fase 3
+1. Rapier resolve movimento, contato e colisões.
+2. `RaceController` decide se checkpoints e voltas são válidos.
+3. `firstTrack.ts` descreve geometria e configuração da prova.
+4. Three.js apenas representa pista, kart e marcadores.
+5. O HUD apenas lê o estado serializável.
 
-O circuito já é fechado e dirigível, mas ainda não existem checkpoints, detecção de volta completa, posição real de corrida, IA, itens ou economia interativa. Esses sistemas não foram antecipados para evitar misturar responsabilidades.
+## Detecção de direção errada
+
+O aviso não depende apenas da orientação do kart. O sistema compara o deslocamento real do veículo com a tangente do trecho mais próximo da pista e exige movimento contrário por um pequeno intervalo antes de ativar o alerta. Isso reduz falsos positivos durante drift ou impactos.
+
+## Limite intencional da Fase 4
+
+A corrida formal funciona para o jogador, mas ainda existe apenas um competidor. Não há IA, itens, caixas de item, ataques, economia interativa, seleção de pilotos ou campeonato. A posição é `1º` porque o grid ainda contém somente o jogador, enquanto o sistema de ranking já aceita múltiplos progressos para a próxima etapa.
 
 ## Próxima fase
 
-**Fase 4: checkpoints, voltas e colocação.**
+**Fase 5: sete pilotos controlados por IA.**
 
-O próximo objetivo é transformar o circuito fechado em uma corrida formal: validar ordem de checkpoints, contar voltas, detectar direção errada e preparar um sistema de classificação para os futuros adversários.
+O próximo objetivo é preencher o grid, fazer adversários seguirem a linha de corrida, reagirem a curvas e colisões e conectar seus progressos ao sistema de classificação criado nesta fase.
