@@ -4,6 +4,7 @@ import './items.css';
 import './finance.css';
 import './decisions.css';
 import './menus.css';
+import { AudioDirector } from './audio/AudioDirector';
 import { KartPhysics } from './physics/KartPhysics';
 import { GameApp } from './render/app/GameApp';
 import { AIFleetController } from './simulation/AIController';
@@ -23,6 +24,7 @@ interface ActiveSession {
 
 async function bootstrap(root: HTMLElement): Promise<void> {
   const track = FIRST_TRACK;
+  const audio = new AudioDirector();
   let activeSession: ActiveSession | null = null;
   let starting = false;
   let ui: GameUiController;
@@ -33,6 +35,7 @@ async function bootstrap(root: HTMLElement): Promise<void> {
       activeSession.hud.dispose();
       activeSession = null;
     }
+    audio.stopSession();
     root.replaceChildren();
   }
 
@@ -40,49 +43,55 @@ async function bootstrap(root: HTMLElement): Promise<void> {
     if (starting) return;
     starting = true;
     ui.setBusy(true);
-    disposeSession();
-
-    const state = createInitialGameState(track);
-    const hud = createHud(document.body, state);
-    let physics: KartPhysics | null = null;
 
     try {
-      physics = await KartPhysics.create(state.vehicle, track, state.rivals);
-      const race = new RaceController(track, state.race, state.vehicle);
-      const ai = new AIFleetController(track, state.rivals);
-      const items = new ItemController(track, state);
-      const finance = new FinanceController(state.finance, state.race);
-      const decisions = new DecisionController(state.decisions);
-      const game = new GameApp(
-        root,
-        state,
-        physics,
-        race,
-        ai,
-        items,
-        finance,
-        decisions,
-        track,
-        (nextState) => {
-          hud.update(nextState);
-          ui.update(nextState);
-        },
-      );
-      physics = null;
-      activeSession = { game, hud };
-      game.start();
-    } catch (error) {
-      if (activeSession !== null) {
-        activeSession.game.dispose();
-        activeSession.hud.dispose();
-        activeSession = null;
-      } else {
+      try {
+        await audio.unlock();
+        audio.playUi('confirm');
+      } catch (error) {
+        console.warn('Web Audio indisponível; iniciando corrida sem som.', error);
+      }
+
+      disposeSession();
+      const state = createInitialGameState(track);
+      audio.resetSession(state);
+      const hud = createHud(document.body, state);
+      let physics: KartPhysics | null = null;
+
+      try {
+        physics = await KartPhysics.create(state.vehicle, track, state.rivals);
+        const race = new RaceController(track, state.race, state.vehicle);
+        const ai = new AIFleetController(track, state.rivals);
+        const items = new ItemController(track, state);
+        const finance = new FinanceController(state.finance, state.race);
+        const decisions = new DecisionController(state.decisions);
+        const game = new GameApp(
+          root,
+          state,
+          physics,
+          race,
+          ai,
+          items,
+          finance,
+          decisions,
+          audio,
+          track,
+          (nextState) => {
+            hud.update(nextState);
+            ui.update(nextState);
+          },
+        );
+        physics = null;
+        activeSession = { game, hud };
+        game.start();
+      } catch (error) {
         physics?.dispose();
         hud.dispose();
+        audio.stopSession();
+        root.replaceChildren();
+        ui.showMenu();
+        throw error;
       }
-      root.replaceChildren();
-      ui.showMenu();
-      throw error;
     } finally {
       starting = false;
       ui.setBusy(false);
@@ -90,7 +99,7 @@ async function bootstrap(root: HTMLElement): Promise<void> {
   }
 
   function exitToMenu(): void {
-    if (starting) return;
+    audio.playUi('back');
     disposeSession();
     ui.showMenu();
   }
@@ -108,6 +117,7 @@ async function bootstrap(root: HTMLElement): Promise<void> {
     () => {
       disposeSession();
       ui.dispose();
+      audio.dispose();
     },
     { once: true },
   );
