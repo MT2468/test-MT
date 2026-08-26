@@ -191,7 +191,7 @@ export function createGameUi(host: HTMLElement, track: TrackDefinition, actions:
     },
     setBusy(nextBusy): void {
       busy = nextBusy;
-      for (const button of [startButton!, restartButton!, raceAgainButton!]) button.disabled = busy;
+      for (const button of shell.querySelectorAll<HTMLButtonElement>('button')) button.disabled = busy;
       startButton!.classList.toggle('is-loading', busy && surface === 'menu');
     },
     dispose(): void {
