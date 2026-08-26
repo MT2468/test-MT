@@ -8,7 +8,9 @@ A Fase 3 aposenta a reta de engenharia e entrega o primeiro circuito fechado ori
 
 ### Avenida do Troco
 
-Circuito urbano-futurista brasileiro com aproximadamente 120 amostras de trajetória geradas a partir de uma spline Catmull-Rom fechada. O traçado tem:
+Circuito urbano-futurista brasileiro com aproximadamente 120 amostras de trajetória geradas a partir de uma spline Catmull-Rom fechada. Todo o circuito e o cenário desta fase são procedurais, sem depender de assets 3D externos.
+
+O traçado tem:
 
 - reta de largada larga;
 - curva longa de alta velocidade;
