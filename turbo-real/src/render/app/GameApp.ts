@@ -1,5 +1,7 @@
 import * as THREE from 'three';
 import { AudioDirector } from '../../audio/AudioDirector';
+import { createQaPanel, type QaPanelController } from '../../diagnostics/createQaPanel';
+import { PlaytestTelemetry } from '../../diagnostics/PlaytestTelemetry';
 import { PlayerInput } from '../../input/PlayerInput';
 import { KartPhysics } from '../../physics/KartPhysics';
 import { AIFleetController } from '../../simulation/AIController';
@@ -28,6 +30,8 @@ export class GameApp {
   private readonly chaseCamera = new ChaseCamera(this.camera);
   private readonly effects = new RaceEffects();
   private readonly itemScene: ItemSceneController;
+  private readonly telemetry: PlaytestTelemetry;
+  private readonly qaPanel: QaPanelController;
   private readonly resizeObserver: ResizeObserver;
   private previousTime = performance.now();
 
@@ -69,6 +73,9 @@ export class GameApp {
 
     this.itemScene = createItemScene(this.state.itemWorld);
     this.effects.reset(this.state);
+    this.telemetry = new PlaytestTelemetry(track);
+    this.telemetry.reset(this.state);
+    this.qaPanel = createQaPanel(document.body, this.telemetry);
     this.buildCircuitScene(track);
     this.syncKartVisual(this.kart, this.state.vehicle, this.state.items, 0);
     this.syncRivalKarts(0);
@@ -83,6 +90,7 @@ export class GameApp {
     this.previousTime = performance.now();
     this.input.update(this.state.phase, this.state.decisions.active !== null);
     this.audio.update(this.state);
+    this.qaPanel.update(this.state);
     this.onStateUpdate(this.state);
     this.renderer.setAnimationLoop((time) => this.render(time));
   }
@@ -94,6 +102,7 @@ export class GameApp {
     this.input.update(this.state.phase, false);
     this.audio.playUi('pause');
     this.audio.update(this.state);
+    this.qaPanel.update(this.state);
     this.onStateUpdate(this.state);
   }
 
@@ -105,6 +114,7 @@ export class GameApp {
     this.input.update(this.state.phase, false);
     this.audio.playUi('confirm');
     this.audio.update(this.state);
+    this.qaPanel.update(this.state);
     this.onStateUpdate(this.state);
   }
 
@@ -115,6 +125,7 @@ export class GameApp {
     this.resizeObserver.disconnect();
     this.renderer.domElement.removeEventListener('webglcontextlost', this.onContextLost);
     this.effects.dispose();
+    this.qaPanel.dispose();
     this.scene.traverse((object) => {
       if (!(object instanceof THREE.Mesh)) return;
       object.geometry.dispose();
@@ -126,13 +137,7 @@ export class GameApp {
   }
 
   private buildCircuitScene(track: TrackDefinition): void {
-    this.scene.add(
-      new THREE.HemisphereLight(
-        track.visuals.ambientSkyColor,
-        track.visuals.ambientGroundColor,
-        track.visuals.theme === 'month-end' ? 1.7 : 2.05,
-      ),
-    );
+    this.scene.add(new THREE.HemisphereLight(track.visuals.ambientSkyColor, track.visuals.ambientGroundColor, 2.05));
 
     const sun = new THREE.DirectionalLight(track.visuals.sunColor, track.visuals.sunIntensity);
     sun.position.set(-72, 110, 48);
@@ -140,24 +145,18 @@ export class GameApp {
     sun.shadow.mapSize.set(2048, 2048);
     sun.shadow.camera.near = 5;
     sun.shadow.camera.far = 300;
-    sun.shadow.camera.left = -155;
-    sun.shadow.camera.right = 155;
-    sun.shadow.camera.top = 155;
-    sun.shadow.camera.bottom = -155;
+    sun.shadow.camera.left = -145;
+    sun.shadow.camera.right = 145;
+    sun.shadow.camera.top = 145;
+    sun.shadow.camera.bottom = -145;
     sun.shadow.bias = -0.00012;
     this.scene.add(sun);
 
-    const coolFill = new THREE.DirectionalLight(
-      track.visuals.theme === 'month-end' ? 0x7e9fe2 : 0x9be7ff,
-      track.visuals.theme === 'month-end' ? 0.68 : 0.52,
-    );
+    const coolFill = new THREE.DirectionalLight(0x9be7ff, 0.52);
     coolFill.position.set(76, 42, -70);
     this.scene.add(coolFill);
 
-    const warmRim = new THREE.DirectionalLight(
-      track.visuals.theme === 'month-end' ? 0xff9f68 : 0xffdc7a,
-      track.visuals.theme === 'month-end' ? 0.55 : 0.34,
-    );
+    const warmRim = new THREE.DirectionalLight(track.visuals.accentColor, 0.34);
     warmRim.position.set(24, 30, 88);
     this.scene.add(warmRim);
 
@@ -200,6 +199,7 @@ export class GameApp {
         this.audio.playUi('confirm');
       }
       this.audio.update(this.state);
+      this.qaPanel.update(this.state);
       this.onStateUpdate(this.state);
       this.renderer.render(this.scene, this.camera);
       return;
@@ -231,11 +231,14 @@ export class GameApp {
     this.syncKartVisual(this.kart, this.state.vehicle, this.state.items, deltaSeconds);
     this.syncRivalKarts(deltaSeconds);
     this.chaseCamera.update(this.state.vehicle, deltaSeconds);
+    this.telemetry.sample(deltaSeconds, this.state, this.renderer);
+    this.qaPanel.update(this.state);
     this.onStateUpdate(this.state);
     this.renderer.render(this.scene, this.camera);
   }
 
   private renderFrozenFrame(): void {
+    this.qaPanel.update(this.state);
     this.onStateUpdate(this.state);
     this.renderer.render(this.scene, this.camera);
   }

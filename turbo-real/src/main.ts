@@ -6,7 +6,9 @@ import './decisions.css';
 import './menus.css';
 import './controls.css';
 import './content.css';
+import './qa.css';
 import { AudioDirector } from './audio/AudioDirector';
+import { auditTrackCatalog } from './diagnostics/trackAnalysis';
 import { KartPhysics } from './physics/KartPhysics';
 import { GameApp } from './render/app/GameApp';
 import { AIFleetController } from './simulation/AIController';
@@ -27,6 +29,9 @@ interface ActiveSession {
 }
 
 async function bootstrap(root: HTMLElement): Promise<void> {
+  const catalogWarnings = auditTrackCatalog(TRACK_CATALOG);
+  if (catalogWarnings.length > 0) console.warn('Auditoria de balanceamento da Copa Primeiro Salário:', catalogWarnings);
+
   const audio = new AudioDirector();
   let selectedTrack = TRACK_CATALOG[0];
   let sessionTrack = selectedTrack;
