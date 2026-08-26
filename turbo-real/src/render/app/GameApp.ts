@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { AudioDirector } from '../../audio/AudioDirector';
 import { KeyboardInput } from '../../input/KeyboardInput';
 import { KartPhysics } from '../../physics/KartPhysics';
 import { AIFleetController } from '../../simulation/AIController';
@@ -11,6 +12,7 @@ import type { GameState } from '../../simulation/state';
 import type { VehicleState } from '../../simulation/vehicle';
 import type { TrackDefinition } from '../../track/firstTrack';
 import { ChaseCamera } from '../camera/ChaseCamera';
+import { RaceEffects } from '../effects/RaceEffects';
 import { createItemScene, type ItemSceneController } from '../items/createItemScene';
 import { createKart, type KartVisual } from '../objects/createKart';
 import { createRaceMarkers } from '../race/createRaceMarkers';
@@ -24,6 +26,7 @@ export class GameApp {
   private readonly rivalKarts = new Map<string, KartVisual>();
   private readonly input = new KeyboardInput();
   private readonly chaseCamera = new ChaseCamera(this.camera);
+  private readonly effects = new RaceEffects();
   private readonly itemScene: ItemSceneController;
   private readonly resizeObserver: ResizeObserver;
   private previousTime = performance.now();
@@ -37,18 +40,20 @@ export class GameApp {
     private readonly items: ItemController,
     private readonly finance: FinanceController,
     private readonly decisions: DecisionController,
+    private readonly audio: AudioDirector,
     track: TrackDefinition,
     private readonly onStateUpdate: (state: GameState) => void = () => {},
   ) {
-    this.scene.background = new THREE.Color(0x8fd8ff);
-    this.scene.fog = new THREE.Fog(0x8fd8ff, 115, 350);
+    this.scene.background = new THREE.Color(0x84d2fb);
+    this.scene.fog = new THREE.Fog(0x84d2fb, 118, 350);
 
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.05;
+    this.renderer.toneMappingExposure = 1.08;
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    this.renderer.domElement.addEventListener('webglcontextlost', this.onContextLost);
     this.container.append(this.renderer.domElement);
 
     for (const rival of this.state.rivals) {
@@ -63,6 +68,7 @@ export class GameApp {
     }
 
     this.itemScene = createItemScene(this.state.itemWorld);
+    this.effects.reset(this.state);
     this.buildCircuitScene(track);
     this.syncKartVisual(this.kart, this.state.vehicle, this.state.items, 0);
     this.syncRivalKarts(0);
@@ -75,6 +81,7 @@ export class GameApp {
 
   start(): void {
     this.previousTime = performance.now();
+    this.audio.update(this.state);
     this.onStateUpdate(this.state);
     this.renderer.setAnimationLoop((time) => this.render(time));
   }
@@ -83,6 +90,8 @@ export class GameApp {
     if (this.state.phase !== 'racing') return;
     this.state.phase = 'paused';
     this.input.clearTransientActions();
+    this.audio.playUi('pause');
+    this.audio.update(this.state);
     this.onStateUpdate(this.state);
   }
 
@@ -91,6 +100,8 @@ export class GameApp {
     this.state.phase = 'racing';
     this.previousTime = performance.now();
     this.input.clearTransientActions();
+    this.audio.playUi('confirm');
+    this.audio.update(this.state);
     this.onStateUpdate(this.state);
   }
 
@@ -99,6 +110,8 @@ export class GameApp {
     this.input.dispose();
     this.physics.dispose();
     this.resizeObserver.disconnect();
+    this.renderer.domElement.removeEventListener('webglcontextlost', this.onContextLost);
+    this.effects.dispose();
     this.scene.traverse((object) => {
       if (!(object instanceof THREE.Mesh)) return;
       object.geometry.dispose();
@@ -110,9 +123,9 @@ export class GameApp {
   }
 
   private buildCircuitScene(track: TrackDefinition): void {
-    this.scene.add(new THREE.HemisphereLight(0xeaf8ff, 0x154425, 2.25));
+    this.scene.add(new THREE.HemisphereLight(0xf0fbff, 0x16482a, 2.05));
 
-    const sun = new THREE.DirectionalLight(0xffffff, 3.35);
+    const sun = new THREE.DirectionalLight(0xffffff, 3.15);
     sun.position.set(-72, 110, 48);
     sun.castShadow = true;
     sun.shadow.mapSize.set(2048, 2048);
@@ -125,9 +138,18 @@ export class GameApp {
     sun.shadow.bias = -0.00012;
     this.scene.add(sun);
 
+    const coolFill = new THREE.DirectionalLight(0x9be7ff, 0.52);
+    coolFill.position.set(76, 42, -70);
+    this.scene.add(coolFill);
+
+    const warmRim = new THREE.DirectionalLight(0xffdc7a, 0.34);
+    warmRim.position.set(24, 30, 88);
+    this.scene.add(warmRim);
+
     this.scene.add(createTrackScene(track));
     this.scene.add(createRaceMarkers(track));
     this.scene.add(this.itemScene.group);
+    this.scene.add(this.effects.group);
     this.scene.add(this.kart.group);
     for (const visual of this.rivalKarts.values()) this.scene.add(visual.group);
   }
@@ -159,7 +181,9 @@ export class GameApp {
       if (decisionChoice !== null) {
         this.decisions.resolve(decisionChoice, this.finance, this.state.vehicle, this.state.race);
         this.state.phase = this.state.race.finished ? 'finished' : 'racing';
+        this.audio.playUi('confirm');
       }
+      this.audio.update(this.state);
       this.onStateUpdate(this.state);
       this.renderer.render(this.scene, this.camera);
       return;
@@ -185,6 +209,8 @@ export class GameApp {
     else this.state.phase = 'racing';
 
     this.itemScene.update(time / 1000, this.state.itemWorld);
+    this.effects.update(deltaSeconds, this.state);
+    this.audio.update(this.state);
     this.syncKartVisual(this.kart, this.state.vehicle, this.state.items, deltaSeconds);
     this.syncRivalKarts(deltaSeconds);
     this.chaseCamera.update(this.state.vehicle, deltaSeconds);
@@ -224,6 +250,11 @@ export class GameApp {
       deltaSeconds,
     });
   }
+
+  private readonly onContextLost = (event: Event): void => {
+    event.preventDefault();
+    this.pause();
+  };
 
   private resize(): void {
     const width = Math.max(1, this.container.clientWidth);

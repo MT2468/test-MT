@@ -1,119 +1,105 @@
 # Turbo Real 🇧🇷🏎️💸
 
-Kart racer arcade 3D original sobre educação financeira no Brasil. O projeto se inspira no ritmo e na acessibilidade dos kart racers, sem copiar personagens, pistas, assets ou identidade visual de franquias existentes.
+Kart racer arcade 3D original sobre educação financeira no Brasil. O projeto se inspira no ritmo e na acessibilidade dos kart racers, sem copiar personagens, pistas, assets, músicas ou identidade visual de franquias existentes.
 
-## Fase 9 - HUD e menus completos
+## Fase 10 - Som, partículas e polimento
 
-A Fase 9 transforma o protótipo das fases anteriores em uma sessão de jogo completa. Agora existe um fluxo claro de menu → corrida → pausa → resultados, sem recarregar a página para reiniciar.
+A Fase 10 dá peso audiovisual ao protótipo já jogável sem alterar as regras de corrida. Simulação continua separada de apresentação: física e controladores produzem estado, enquanto áudio, partículas, câmera e iluminação apenas reagem a esse estado.
 
-### Menu principal
+### Áudio procedural com Web Audio
 
-Ao abrir o jogo, a física ainda não é criada. O jogador vê primeiro uma tela de corrida rápida com:
+Não existem MP3s ou efeitos sonoros externos nesta fase. `AudioDirector` sintetiza tudo no navegador:
 
-- identidade do Turbo Real;
-- Avenida do Troco selecionada;
-- 3 voltas;
-- 8 pilotos;
-- 4 itens arcade;
-- 3 decisões financeiras;
-- gaveta compacta de controles;
-- botão de largada e atalho `Enter`.
+- motor contínuo com pitch e filtro seguindo a velocidade;
+- ruído de pneu proporcional à derrapagem;
+- camada extra durante boost;
+- pickup de caixa;
+- assinatura diferente para Turbo Solar, Escudo Prisma, Pulso Repulsor e Faixa Grudenta;
+- impacto com ruído e grave curto;
+- checkpoint e fechamento de volta;
+- entrada de decisão financeira;
+- feedback de pausa, confirmação e retorno de menu;
+- sequência curta de bandeirada.
 
-A seleção já é estruturada como uma superfície própria para receber novas pistas e modos nas fases futuras, embora nesta fase exista apenas a Avenida do Troco.
+O `AudioContext` só é criado quando o jogador inicia a corrida, respeitando as restrições de autoplay dos navegadores. Se Web Audio não puder iniciar, o jogo continua funcional sem som.
 
-### Sessão reiniciável
+### Partículas reutilizáveis
 
-`main.ts` passa a controlar a vida útil da corrida.
+`RaceEffects` mantém um pool fixo de partículas em Three.js, evitando criar e destruir objetos a cada frame.
 
-Cada largada cria do zero:
+O pool reage a:
 
-- `GameState`;
-- mundo Rapier;
-- IA;
-- `RaceController`;
-- `ItemController`;
-- `FinanceController`;
-- `DecisionController`;
-- HUD;
-- renderer Three.js.
+- drift do jogador e dos rivais;
+- boost;
+- impactos;
+- coleta de item;
+- uso de item.
 
-Ao reiniciar ou voltar ao menu, a sessão anterior é descartada e seus recursos são liberados. Não existe `location.reload()` como parte do fluxo normal.
+Também existem linhas de velocidade leves que aparecem apenas em velocidades maiores e ficam mais intensas durante boost. O efeito usa `BufferGeometry`, `Points` e `LineSegments`, sem texturas externas.
 
-### Pausa real
+### Câmera refinada
 
-`Esc` alterna a pausa durante a pilotagem.
+A `ChaseCamera` agora possui:
 
-Enquanto a corrida está pausada:
+- FOV progressivo pela velocidade;
+- abertura adicional durante boost;
+- leve inclinação durante drift;
+- pequeno roll de direção fora do drift;
+- shake curto orientado pelo impacto;
+- look-ahead maior em alta velocidade;
+- posição suavizada separada da vibração para impedir acúmulo de shake.
 
-- física não avança;
-- IAs não avançam;
-- cronômetro não avança;
-- itens e hazards não avançam;
-- finanças não avançam;
-- animações de mundo ficam congeladas;
-- o menu mostra volta, posição e tempo atuais.
+A intensidade foi mantida baixa para preservar leitura da pista.
 
-O menu de pausa oferece:
+### Iluminação
 
-1. continuar;
-2. reiniciar corrida;
-3. voltar ao menu principal.
+O circuito mantém ACES Filmic e sombras suaves, mas ganhou um passe de luz com:
 
-Decisões financeiras continuam sendo modais próprias e não competem com o menu de pausa.
+- hemisférica mais equilibrada;
+- luz solar principal ajustada;
+- preenchimento frio pelo lado oposto;
+- rim light quente discreta;
+- exposição ligeiramente revisada;
+- névoa e céu alinhados ao novo balanço.
 
-### Resultado de corrida
+### Ciclo de áudio e sessão
 
-Quando o jogador cruza a chegada final, a simulação também congela. A antiga caixa simples de chegada foi substituída por uma tela de resultados com:
+`AudioDirector` vive acima da sessão 3D, em `main.ts`.
 
-- colocação do jogador;
-- tempo total;
-- melhor volta;
-- classificação dos 8 pilotos;
-- saldo final;
-- reserva final;
-- dívida final;
-- patrimônio líquido de jogo;
-- custos gerados pelas decisões;
-- valor do imprevisto absorvido pela reserva;
-- histórico das escolhas financeiras;
-- botão para correr novamente;
-- botão para voltar ao menu.
+Isso permite:
 
-`Enter` inicia uma nova corrida a partir dos resultados.
+1. desbloquear Web Audio no clique/Enter de largada;
+2. manter o contexto vivo entre reinícios;
+3. zerar motor e derrapagem ao sair para o menu;
+4. resetar detecção de eventos a cada corrida;
+5. destruir o contexto somente ao fechar a página.
 
-### HUD reorganizado
+`GameApp` apenas informa estado atual ao diretor de áudio e controla os efeitos visuais da sessão.
 
-Durante a pilotagem, o HUD volta a se concentrar apenas em informação que muda em tempo real:
+### Recuperação de WebGL
 
-- posição, volta, setor e cronômetro;
-- saldo, reserva, dívida e compromissos futuros;
-- item atual;
-- drift/turbo;
-- velocidade;
-- avisos temporários;
-- cartão de decisão somente quando necessário.
+O canvas passa a ouvir `webglcontextlost`. Se o contexto gráfico for perdido durante uma corrida, o jogo impede o comportamento padrão e entra em pausa em vez de continuar simulando sem imagem.
 
-A lista permanente de controles foi removida do playfield e movida para menu/pausa. A tela de chegada também saiu do HUD e virou uma superfície própria de resultados.
-
-### Arquitetura de UI
+## Arquitetura adicionada
 
 ```text
 src/
-├── ui/
-│   ├── createGameUi.ts   # menu, pausa e resultados
-│   └── createHud.ts      # telemetria da corrida
-├── render/app/GameApp.ts # simulação, pause/resume e render
-├── simulation/state.ts   # racing | paused | decision | finished
-└── menus.css             # superfícies de interface da Fase 9
+├── audio/
+│   └── AudioDirector.ts
+├── render/
+│   ├── camera/ChaseCamera.ts
+│   ├── effects/RaceEffects.ts
+│   └── app/GameApp.ts
+└── main.ts
 ```
 
-A divisão fica assim:
+A separação continua intencional:
 
-1. `GameApp` é responsável pelo loop e por congelar/descongelar a sessão;
-2. `createGameUi` é responsável por navegação, botões e resultados;
-3. `createHud` exibe somente telemetria e decisões contextuais;
-4. `main.ts` cria e destrói sessões completas;
-5. física, corrida, itens e finanças continuam independentes do DOM.
+1. física, corrida, IA, itens e finanças não dependem de áudio ou partículas;
+2. `AudioDirector` observa `GameState` e produz som;
+3. `RaceEffects` observa `GameState` e produz feedback visual;
+4. `ChaseCamera` observa apenas `VehicleState`;
+5. nenhum efeito visual concede velocidade, item ou vantagem.
 
 ## Controles
 
@@ -144,7 +130,7 @@ npm run typecheck
 npm run build
 ```
 
-## Conteúdo acumulado até a Fase 9
+## Conteúdo acumulado até a Fase 10
 
 O protótipo já possui:
 
@@ -156,16 +142,20 @@ O protótipo já possui:
 - caixas e quatro itens arcade;
 - saldo, reserva, dívida, custos, juros simulados e premiação;
 - Reserva Expressa, Crédito Turbo e Atalho Premium;
-- menu inicial, pausa, reinício, saída para menu e resultados.
+- menu inicial, pausa, reinício, saída para menu e resultados;
+- motor e efeitos procedurais;
+- partículas de drift, boost, impacto e itens;
+- linhas de velocidade;
+- câmera e iluminação refinadas.
 
 Os valores financeiros são fictícios de gameplay e não representam taxas, produtos ou recomendações financeiras reais.
 
-## Limite intencional da Fase 9
+## Limite intencional da Fase 10
 
-Ainda não entram áudio completo, partículas/polimento final, suporte dedicado a gamepad/mobile, novos circuitos, carreira/campeonato ou multiplayer. O menu já deixa a arquitetura pronta para essas expansões, sem fingir que conteúdo ainda inexistente está disponível.
+Ainda não entram controles dedicados para celular/gamepad, novos circuitos, carreira/campeonato ou multiplayer. Também não há música licenciada nem arquivos de áudio externos nesta etapa.
 
 ## Próxima fase
 
-**Fase 10: som, partículas e polimento.**
+**Fase 11: mobile e gamepad.**
 
-O próximo passo é dar peso audiovisual ao que já existe: motor, drift, impactos, itens, feedback de UI, partículas de velocidade e acabamento de câmera/iluminação, preservando desempenho e legibilidade.
+O próximo passo é adaptar pilotagem e menus para toque, adicionar gamepad com mapeamento explícito, feedback de foco e layout responsivo de controles sem cobrir o playfield.
