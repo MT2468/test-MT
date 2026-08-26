@@ -67,6 +67,8 @@ npm run typecheck
 npm run build
 ```
 
+O CI da Fase 4 deve validar compilação e tipos. O playtest funcional precisa confirmar, no navegador, pelo menos: checkpoints fora de ordem não contam, ré não valida setor, a terceira passagem correta pela chegada encerra a prova e o aviso de direção errada não dispara durante um drift normal.
+
 ## Arquitetura
 
 ```text
