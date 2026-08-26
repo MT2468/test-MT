@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { AudioDirector } from '../../audio/AudioDirector';
-import { KeyboardInput } from '../../input/KeyboardInput';
+import { PlayerInput } from '../../input/PlayerInput';
 import { KartPhysics } from '../../physics/KartPhysics';
 import { AIFleetController } from '../../simulation/AIController';
 import { DecisionController } from '../../simulation/decisions/DecisionController';
@@ -24,7 +24,7 @@ export class GameApp {
   private readonly renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
   private readonly kart = createKart();
   private readonly rivalKarts = new Map<string, KartVisual>();
-  private readonly input = new KeyboardInput();
+  private readonly input = new PlayerInput(document.body);
   private readonly chaseCamera = new ChaseCamera(this.camera);
   private readonly effects = new RaceEffects();
   private readonly itemScene: ItemSceneController;
@@ -81,6 +81,7 @@ export class GameApp {
 
   start(): void {
     this.previousTime = performance.now();
+    this.input.update(this.state.phase, this.state.decisions.active !== null);
     this.audio.update(this.state);
     this.onStateUpdate(this.state);
     this.renderer.setAnimationLoop((time) => this.render(time));
@@ -90,6 +91,7 @@ export class GameApp {
     if (this.state.phase !== 'racing') return;
     this.state.phase = 'paused';
     this.input.clearTransientActions();
+    this.input.update(this.state.phase, false);
     this.audio.playUi('pause');
     this.audio.update(this.state);
     this.onStateUpdate(this.state);
@@ -100,6 +102,7 @@ export class GameApp {
     this.state.phase = 'racing';
     this.previousTime = performance.now();
     this.input.clearTransientActions();
+    this.input.update(this.state.phase, false);
     this.audio.playUi('confirm');
     this.audio.update(this.state);
     this.onStateUpdate(this.state);
@@ -157,6 +160,7 @@ export class GameApp {
   private render(time: number): void {
     const deltaSeconds = Math.min((time - this.previousTime) / 1000, 0.1);
     this.previousTime = time;
+    this.input.update(this.state.phase, this.state.decisions.active !== null);
 
     const pauseRequested = this.input.consumePause();
     if (this.state.phase === 'paused') {
@@ -208,6 +212,7 @@ export class GameApp {
     else if (this.state.race.finished) this.state.phase = 'finished';
     else this.state.phase = 'racing';
 
+    this.input.update(this.state.phase, this.state.decisions.active !== null);
     this.itemScene.update(time / 1000, this.state.itemWorld);
     this.effects.update(deltaSeconds, this.state);
     this.audio.update(this.state);
