@@ -2,18 +2,36 @@
 
 Kart racer arcade 3D original sobre educação financeira no Brasil. O projeto se inspira no ritmo e na acessibilidade dos kart racers, sem copiar personagens, pistas, assets ou identidade visual de franquias existentes.
 
-## Fase 0 — Fundação técnica
+## Fase 1 — Kart dirigível + câmera de perseguição
 
-Esta branch entrega apenas a base que as próximas fases vão usar:
+A Fase 1 transforma o boot técnico da Fase 0 em um protótipo realmente controlável.
 
-- Vite + TypeScript + Three.js;
-- cena WebGL mínima com iluminação, sombras, estrada e kart-placeholder;
-- estado de simulação separado da renderização;
-- camada de UI em DOM, fora do WebGL;
-- mapa explícito de ações de entrada para teclado;
-- layout responsivo e suporte a `prefers-reduced-motion`;
-- `base: './'` no Vite para facilitar hospedagem estática futura;
-- descarte de geometria, materiais e renderer ao encerrar.
+### Entregue
+
+- movimento arcade serializável fora do Three.js;
+- aceleração progressiva até aproximadamente 79 km/h;
+- frenagem antes de engatar ré;
+- ré limitada e esterço invertido corretamente durante marcha à ré;
+- desaceleração natural quando nenhum acelerador é pressionado;
+- resposta de direção suavizada e dependente da velocidade;
+- teclado com limpeza de estado ao perder foco da janela;
+- câmera de perseguição suavizada e independente da taxa de quadros;
+- leve aumento de FOV em alta velocidade;
+- rodas dianteiras acompanhando visualmente o esterço;
+- pista de prática de 300 unidades com referências de profundidade;
+- HUD em DOM com velocidade, marcha e distância percorrida;
+- suporte responsivo e `prefers-reduced-motion` preservado.
+
+## Controles
+
+| Ação | Teclas |
+| --- | --- |
+| Acelerar | `W` ou `↑` |
+| Frear / Ré | `S` ou `↓` |
+| Virar à esquerda | `A` ou `←` |
+| Virar à direita | `D` ou `→` |
+
+`Shift`, `Espaço` e `Esc` continuam reservados no mapa de ações para drift, item e pausa, mas essas funções ainda não são executadas nesta fase.
 
 ## Executar
 
@@ -31,30 +49,31 @@ npm run typecheck
 npm run build
 ```
 
-## Estrutura
+## Arquitetura
 
 ```text
 src/
-├── input/                 # ações abstratas e bindings físicos
+├── input/
+│   ├── actions.ts              # ações abstratas e bindings
+│   └── KeyboardInput.ts        # estado físico do teclado
 ├── render/
-│   ├── app/               # renderer, scene, camera, resize e lifecycle
-│   └── objects/           # objetos visuais e factories Three.js
-├── simulation/            # estado e regras serializáveis, sem objetos Three.js
-└── ui/                    # HUD e menus em DOM
+│   ├── app/GameApp.ts          # loop, cena e sincronização visual
+│   ├── camera/ChaseCamera.ts   # comportamento da câmera
+│   └── objects/createKart.ts   # representação visual do kart
+├── simulation/
+│   ├── state.ts                # estado serializável do jogo
+│   └── vehicle.ts              # cinemática arcade do veículo
+└── ui/createHud.ts             # HUD DOM orientado pelo estado
 ```
 
-Pastas de `physics/`, `audio/`, `data/`, pistas, IA e economia entram quando suas respectivas fases começarem. Evitamos criar abstrações vazias antes de existir comportamento real para elas.
+A simulação continua sendo a fonte de verdade. Three.js recebe posição, direção, velocidade e esterço e apenas representa esses valores visualmente.
 
-## Regra arquitetural
+## Limite intencional da Fase 1
 
-A simulação é a fonte de verdade. Three.js desenha o estado; não é o lugar onde dinheiro, voltas, IA, progressão ou decisões financeiras devem morar.
+Ainda não existem física com Rapier, colisões, aderência de pneus, drift, boost, checkpoints, voltas, IA, itens ou economia interativa. O kart pode sair da pista porque limites físicos pertencem à próxima etapa.
 
-## Estado atual
+## Próxima fase
 
-A tela de boot exibe um kart geométrico estacionado numa estrada provisória e um HUD mínimo com saldo de demonstração. Não existe dirigibilidade ainda de propósito.
+**Fase 2: drift, aceleração refinada, colisões e física de veículo.**
 
-### Próxima fase
-
-**Fase 1: kart dirigível + câmera de perseguição.**
-
-Objetivo: transformar o placeholder atual em um veículo controlável mantendo as regras de movimento fora da cena Three.js.
+O objetivo será substituir as limitações cinemáticas necessárias deste protótipo por um sistema físico arcade consistente, sem mover as regras de jogo para dentro do renderer.
