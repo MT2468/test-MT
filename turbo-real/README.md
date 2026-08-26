@@ -2,78 +2,114 @@
 
 Kart racer arcade 3D original sobre educação financeira no Brasil. O projeto se inspira no ritmo e na acessibilidade dos kart racers, sem copiar personagens, pistas, assets ou identidade visual de franquias existentes.
 
-## Fase 6 - Sistema de itens arcade
+## Fase 7 - Sistema financeiro da corrida
 
-A Fase 6 adiciona a primeira camada de disputa por itens à corrida de oito pilotos da Avenida do Troco. Os itens desta fase são deliberadamente arcade e originais; a camada de educação financeira continua reservada para as fases seguintes.
+A Fase 7 conecta finalmente a educação financeira ao loop jogável. Ainda não existem perguntas, respostas certas ou telas de quiz: esta etapa cria o motor financeiro que a Fase 8 usará para decisões guiadas.
 
-### Caixas de item
+O objetivo é fazer dinheiro ter consequências mecânicas sem interromper a pilotagem.
 
-A pista agora define cinco fileiras de caixas, cada uma com três opções de linha. No total existem 15 caixas ativas no circuito.
+### Estado financeiro
 
-- a caixa só pode ser coletada por um piloto sem item no inventário;
-- cada piloto possui apenas um slot;
-- quando coletada, a caixa desaparece para todos;
-- a caixa reaparece depois de 4,8 segundos;
-- jogador e IA disputam as mesmas caixas;
-- a configuração das fileiras pertence à definição da pista, não ao renderer.
+O jogador começa cada corrida com:
 
-### Sorteio ponderado pela colocação
+- saldo: R$120;
+- reserva de emergência: R$20;
+- dívida: R$0.
 
-O item recebido depende da posição atual na corrida. Quem está atrás recebe probabilidade maior de itens de recuperação ou ofensivos, enquanto quem está na frente recebe mais opções defensivas e de controle de pista.
+O estado financeiro é serializável e separado de física, itens e renderização. Ele registra saldo, reserva, dívida, renda total, despesas, juros simulados, valor protegido pela reserva e um extrato das últimas transações.
 
-O sorteio não altera diretamente velocidade, colocação ou checkpoints. Ele apenas escolhe qual item vai para o slot, preservando a disputa na pista.
+### Fluxo de dinheiro durante a prova
 
-### Itens
+#### Renda por setor
 
-#### ☀ Turbo Solar
+Cada checkpoint intermediário validado rende R$6. A renda só é concedida quando o `RaceController` confirma progresso legal, portanto cortar caminho não produz dinheiro.
 
-Converte o slot em um boost imediato de 1,7 segundo. Usa o mesmo sistema de turbo já existente no veículo, portanto continua respeitando a física arcade.
+#### Custo operacional
 
-#### ◇ Escudo Prisma
+Ao completar cada volta, a corrida cobra R$18 de custo operacional.
 
-Cria proteção temporária por 5,5 segundos. O primeiro Pulso Repulsor ou Faixa Grudenta recebido é absorvido e consome o escudo.
+Esse é um gasto rotineiro. O sistema tenta pagar pelo saldo normal e **não usa a reserva automaticamente**. Se o saldo for insuficiente, a parte não paga vira dívida.
 
-#### ◎ Pulso Repulsor
+#### Imprevisto
 
-Afeta pilotos próximos em um raio curto. Alvos sem escudo recebem impulso físico radial, pequena perda de velocidade e feedback visual de impacto.
+No segundo setor da segunda volta ocorre um reparo inesperado de R$45.
 
-#### ▰ Faixa Grudenta
+Para esse evento o fluxo é diferente:
 
-É deixada atrás do kart e permanece na pista por alguns segundos. O primeiro adversário que atravessar a faixa perde velocidade e fica temporariamente limitado em aceleração e velocidade máxima. Um escudo ativo absorve a armadilha.
+1. usa a reserva de emergência disponível;
+2. depois usa o saldo;
+3. somente o restante vira dívida.
 
-### IA e itens
+O jogo registra quanto desse imprevisto foi absorvido pela reserva e mostra esse valor no relatório final.
 
-Os sete rivais também coletam e usam itens.
+#### Dívida e juros simulados
 
-- Turbo Solar é usado quando o kart já possui velocidade suficiente;
-- Escudo Prisma é ativado defensivamente;
-- Pulso Repulsor prioriza momentos com adversários próximos;
-- Faixa Grudenta é preferida quando existe tráfego atrás;
-- itens mantidos por tempo demais também são usados para evitar inventário eternamente travado.
+Se houver dívida ao concluir uma volta, ela recebe 5% de juros **simulados da corrida**.
 
-A IA continua decidindo pilotagem em `AIController`; a estratégia e os efeitos de itens vivem no sistema de itens.
+Essa taxa é puramente uma regra de gameplay para demonstrar crescimento de dívida. Ela não representa Selic, taxa bancária, cartão de crédito ou qualquer taxa real do mercado brasileiro.
 
-### Física e estado
+#### Premiação
 
-`ItemController` decide coleta, inventário, uso, escudo, hazards e temporizadores. `KartPhysics` recebe apenas efeitos físicos explícitos, como impulso, redução instantânea de velocidade e modificadores temporários de lentidão.
+Ao terminar a prova, o saldo recebe prêmio conforme a posição:
 
-Isso mantém a separação:
+| Posição | Prêmio |
+| --- | ---: |
+| 1º | R$80 |
+| 2º | R$68 |
+| 3º | R$58 |
+| 4º | R$48 |
+| 5º | R$40 |
+| 6º | R$34 |
+| 7º | R$28 |
+| 8º | R$24 |
 
-1. sistema de itens decide o efeito;
-2. Rapier executa movimento e impulso;
-3. o estado serializável registra inventário, escudo, lentidão, caixas e hazards;
-4. Three.js desenha caixas, hazards e feedback dos karts;
-5. o HUD apenas lê o estado.
+### Reserva durante a corrida
 
-### Feedback visual
+O jogador pode administrar a própria liquidez sem abrir menus:
 
-- caixas de item flutuam e giram;
-- caixas coletadas desaparecem durante o cooldown;
-- Faixa Grudenta aparece fisicamente sobre o asfalto;
-- Escudo Prisma cria uma bolha translúcida ao redor do kart;
-- lentidão cria um anel visual próximo ao solo;
-- impactos de item fazem o chassi piscar;
-- o HUD possui um slot dedicado com ícone, nome e estado atual.
+- `E`: move R$10 do saldo para a reserva;
+- `Q`: move R$10 da reserva para o saldo.
+
+As ações são tratadas como eventos únicos de teclado, então segurar a tecla não transfere dinheiro repetidamente.
+
+A mecânica cria um pequeno conflito real de planejamento: guardar demais pode deixar pouco saldo para despesas rotineiras; guardar de menos deixa o imprevisto menos protegido.
+
+### HUD e relatório final
+
+O HUD agora mostra valores reais do sistema:
+
+- saldo;
+- reserva;
+- dívida;
+- mensagens temporárias de renda, custo, imprevisto, transferência e juros.
+
+Na chegada, além de posição e tempo, aparece um resumo com:
+
+- saldo final;
+- reserva final;
+- dívida final;
+- patrimônio líquido de jogo (`saldo + reserva - dívida`);
+- quanto do imprevisto foi coberto pela reserva.
+
+### Extrato
+
+`FinancialState.transactions` mantém até 24 registros recentes. Cada transação guarda:
+
+- tipo;
+- descrição;
+- instante da corrida;
+- valor;
+- saldo depois da operação;
+- reserva depois da operação;
+- dívida depois da operação.
+
+A interface de extrato completo ficará para uma fase posterior, mas os dados já existem para relatórios e progressão.
+
+### Base pedagógica
+
+A mecânica foi desenhada em torno de três ideias centrais de educação financeira no Brasil: organização do orçamento, formação de poupança/resiliência financeira e prevenção do endividamento excessivo. A reserva é tratada como proteção para imprevistos, enquanto despesas previsíveis devem ser planejadas no fluxo normal.
+
+Os números da corrida são deliberadamente pequenos e fictícios. O objetivo não é ensinar uma taxa específica ou sugerir produto financeiro.
 
 ## Controles
 
@@ -85,8 +121,8 @@ Isso mantém a separação:
 | Virar à direita | `D` ou `→` |
 | Drift | `Shift` esquerdo ou direito + curva |
 | Usar item | `Espaço` |
-
-`Espaço` é tratado como ação única: manter a tecla pressionada não dispara repetidamente nem consome automaticamente o próximo item coletado.
+| Guardar R$10 na reserva | `E` |
+| Retirar R$10 da reserva | `Q` |
 
 ## Executar
 
@@ -121,6 +157,9 @@ src/
 │   ├── race/createRaceMarkers.ts
 │   └── track/createTrackScene.ts
 ├── simulation/
+│   ├── finance/
+│   │   ├── FinanceController.ts
+│   │   └── types.ts
 │   ├── items/
 │   │   ├── ItemController.ts
 │   │   └── types.ts
@@ -132,17 +171,26 @@ src/
 ├── track/
 │   └── firstTrack.ts
 ├── ui/createHud.ts
+├── finance.css
 ├── items.css
 ├── race.css
 └── styles.css
 ```
 
-## Limite intencional da Fase 6
+A separação continua deliberada:
 
-Os itens já alteram a corrida, mas ainda não representam decisões de educação financeira. Não existem orçamento, crédito, reserva de emergência, juros, Pix, inflação ou escolhas de custo de oportunidade durante a prova. Também ainda não existem seleção de pilotos, campeonato, áudio completo ou multiplayer.
+1. `FinanceController` decide renda, despesas, reserva, dívida, juros e prêmio;
+2. `RaceController` fornece apenas progresso e posição validados;
+3. Rapier continua responsável exclusivamente por movimento e colisões;
+4. Three.js não contém regras financeiras;
+5. o HUD apenas lê o estado financeiro serializável.
+
+## Limite intencional da Fase 7
+
+Ainda não há cartões de decisão, crédito turbo, parcelamento, Pix, golpes, inflação, investimento ou escolha de custo de oportunidade. Esses sistemas dependem do motor financeiro criado aqui e serão adicionados gradualmente sem transformar a corrida em questionário.
 
 ## Próxima fase
 
-**Fase 7: sistema financeiro da corrida.**
+**Fase 8: decisões financeiras durante a corrida.**
 
-O próximo objetivo é introduzir saldo em reais virtuais, reserva de emergência e custos/consequências persistentes de decisões financeiras, conectando finalmente a educação financeira ao loop de corrida sem transformar a partida em um questionário.
+O próximo objetivo é introduzir pontos de decisão rápidos e contextuais, como reservar dinheiro, aceitar crédito para ganhar desempenho imediato ou pagar custos futuros, sempre mostrando consequência depois da escolha em vez de pedir respostas de prova.
