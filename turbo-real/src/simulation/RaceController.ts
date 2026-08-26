@@ -37,7 +37,7 @@ export interface RaceStanding {
   readonly position: number;
 }
 
-export function createInitialRaceState(track: TrackDefinition): RaceState {
+export function createInitialRaceState(track: TrackDefinition, totalRacers = 1): RaceState {
   const checkpointCount = track.race.checkpointSampleIndices.length;
   return {
     lap: 1,
@@ -47,7 +47,7 @@ export function createInitialRaceState(track: TrackDefinition): RaceState {
     checkpointsPassed: 0,
     checkpointCount,
     position: 1,
-    totalRacers: 1,
+    totalRacers,
     wrongWay: false,
     finished: false,
     raceTimeSeconds: 0,
@@ -108,9 +108,18 @@ function calculateLegalProgress(track: TrackDefinition, state: RaceState, neares
   const endSample = checkpoints[nextListIndex];
   const span = (endSample - startSample + sampleCount) % sampleCount || sampleCount;
   const offset = (nearestIndex - startSample + sampleCount) % sampleCount;
-  const localProgress = Math.max(0, Math.min(offset / span, 1));
+
+  let localProgress: number;
+  if (offset <= span) {
+    localProgress = offset / span;
+  } else {
+    const distanceBackwardToStart = (startSample - nearestIndex + sampleCount) % sampleCount;
+    const distanceForwardFromEnd = (nearestIndex - endSample + sampleCount) % sampleCount;
+    localProgress = distanceBackwardToStart <= distanceForwardFromEnd ? 0 : 1;
+  }
+
   const completedSectors = nextListIndex === 0 ? checkpoints.length - 1 : nextListIndex - 1;
-  const lapProgress = (completedSectors + localProgress) / checkpoints.length;
+  const lapProgress = (completedSectors + Math.max(0, Math.min(localProgress, 1))) / checkpoints.length;
   return state.completedLaps + lapProgress;
 }
 
@@ -140,7 +149,7 @@ export class RaceController {
       this.processExpectedCheckpoint(vehicle);
     }
 
-    this.state.progress = calculateLegalProgress(this.track, this.state, nearestIndex);
+    this.state.progress = Math.max(this.state.progress, calculateLegalProgress(this.track, this.state, nearestIndex));
     this.previousX = vehicle.x;
     this.previousZ = vehicle.z;
   }
@@ -190,6 +199,7 @@ export class RaceController {
       this.state.lap = this.state.totalLaps;
       this.state.nextCheckpoint = 0;
       this.state.wrongWay = false;
+      this.state.progress = this.state.totalLaps;
       return;
     }
 

@@ -27,12 +27,12 @@ export function createHud(host: HTMLElement, initialState: GameState): HudContro
       <span class="brand-chip__flag" aria-hidden="true">◆</span>
       <div>
         <strong>TURBO REAL</strong>
-        <span>Avenida do Troco</span>
+        <span>Avenida do Troco · grid com 8 pilotos</span>
       </div>
     </section>
 
     <section class="race-chip" aria-label="Estado da corrida">
-      <strong data-position>1º</strong>
+      <strong data-position>1º/8</strong>
       <div>
         <span data-lap>VOLTA 1/3</span>
         <small data-race-detail>SETOR 1/6 · 00:00.000</small>
@@ -69,7 +69,7 @@ export function createHud(host: HTMLElement, initialState: GameState): HudContro
 
     <section class="finish-chip" data-finish hidden aria-live="polite">
       <span>🏁 CHEGADA</span>
-      <strong data-finish-position>1º LUGAR</strong>
+      <strong data-finish-position>1º DE 8</strong>
       <small data-finish-time>00:00.000</small>
       <em data-best-lap>Melhor volta · --:--.---</em>
     </section>
@@ -109,7 +109,7 @@ export function createHud(host: HTMLElement, initialState: GameState): HudContro
     !finishTime ||
     !bestLap
   ) {
-    throw new Error('HUD da Fase 4 incompleto.');
+    throw new Error('HUD da Fase 5 incompleto.');
   }
 
   const controller: HudController = {
@@ -119,7 +119,7 @@ export function createHud(host: HTMLElement, initialState: GameState): HudContro
       const gear = vehicle.speed < -0.1 ? 'R' : 'D';
       direction.textContent = `${gear} · ${Math.round(vehicle.distanceTravelled)} m`;
 
-      position.textContent = `${race.position}º`;
+      position.textContent = `${race.position}º/${race.totalRacers}`;
       lap.textContent = `VOLTA ${race.lap}/${race.totalLaps}`;
       const sector = race.finished ? race.checkpointCount : Math.min(race.checkpointsPassed + 1, race.checkpointCount);
       raceDetail.textContent = `SETOR ${sector}/${race.checkpointCount} · ${formatTime(race.raceTimeSeconds)}`;
@@ -144,7 +144,7 @@ export function createHud(host: HTMLElement, initialState: GameState): HudContro
 
       finish.hidden = !race.finished;
       if (race.finished) {
-        finishPosition.textContent = `${race.position}º LUGAR`;
+        finishPosition.textContent = `${race.position}º DE ${race.totalRacers}`;
         finishTime.textContent = formatTime(race.raceTimeSeconds);
         bestLap.textContent = `Melhor volta · ${race.bestLapTimeSeconds === null ? '--:--.---' : formatTime(race.bestLapTimeSeconds)}`;
       }

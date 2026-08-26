@@ -1,11 +1,13 @@
 import * as THREE from 'three';
 import { KeyboardInput } from '../../input/KeyboardInput';
 import { KartPhysics } from '../../physics/KartPhysics';
+import { AIFleetController } from '../../simulation/AIController';
 import { RaceController } from '../../simulation/RaceController';
 import type { GameState } from '../../simulation/state';
+import type { VehicleState } from '../../simulation/vehicle';
 import type { TrackDefinition } from '../../track/firstTrack';
 import { ChaseCamera } from '../camera/ChaseCamera';
-import { createKart } from '../objects/createKart';
+import { createKart, type KartVisual } from '../objects/createKart';
 import { createRaceMarkers } from '../race/createRaceMarkers';
 import { createTrackScene } from '../track/createTrackScene';
 
@@ -14,6 +16,7 @@ export class GameApp {
   private readonly camera = new THREE.PerspectiveCamera(56, 1, 0.1, 520);
   private readonly renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
   private readonly kart = createKart();
+  private readonly rivalKarts = new Map<string, KartVisual>();
   private readonly input = new KeyboardInput();
   private readonly chaseCamera = new ChaseCamera(this.camera);
   private readonly resizeObserver: ResizeObserver;
@@ -24,6 +27,7 @@ export class GameApp {
     private readonly state: GameState,
     private readonly physics: KartPhysics,
     private readonly race: RaceController,
+    private readonly ai: AIFleetController,
     track: TrackDefinition,
     private readonly onStateUpdate: (state: GameState) => void = () => {},
   ) {
@@ -38,8 +42,20 @@ export class GameApp {
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.container.append(this.renderer.domElement);
 
+    for (const rival of this.state.rivals) {
+      this.rivalKarts.set(
+        rival.id,
+        createKart({
+          name: `rival-${rival.id}`,
+          bodyColor: rival.profile.bodyColor,
+          accentColor: rival.profile.accentColor,
+        }),
+      );
+    }
+
     this.buildCircuitScene(track);
-    this.syncKart(0);
+    this.syncKartVisual(this.kart, this.state.vehicle, 0);
+    this.syncRivalKarts(0);
     this.chaseCamera.reset(this.state.vehicle);
 
     this.resizeObserver = new ResizeObserver(() => this.resize());
@@ -87,27 +103,43 @@ export class GameApp {
     this.scene.add(createTrackScene(track));
     this.scene.add(createRaceMarkers(track));
     this.scene.add(this.kart.group);
+    for (const visual of this.rivalKarts.values()) this.scene.add(visual.group);
   }
 
   private render(time: number): void {
     const deltaSeconds = Math.min((time - this.previousTime) / 1000, 0.1);
     this.previousTime = time;
 
-    this.physics.advance(this.input.readDrivingInput(), deltaSeconds, this.state.vehicle);
+    const rivalInputs = this.ai.readInputs(this.state.vehicle);
+    this.physics.advance(
+      this.input.readDrivingInput(),
+      rivalInputs,
+      deltaSeconds,
+      this.state.vehicle,
+      this.state.rivals,
+    );
     this.race.advance(deltaSeconds, this.state.vehicle);
+    this.ai.advanceRace(deltaSeconds, this.state.race);
     if (this.state.race.finished) this.state.phase = 'finished';
 
-    this.syncKart(deltaSeconds);
+    this.syncKartVisual(this.kart, this.state.vehicle, deltaSeconds);
+    this.syncRivalKarts(deltaSeconds);
     this.chaseCamera.update(this.state.vehicle, deltaSeconds);
     this.onStateUpdate(this.state);
     this.renderer.render(this.scene, this.camera);
   }
 
-  private syncKart(deltaSeconds: number): void {
-    const { vehicle } = this.state;
-    this.kart.group.position.set(vehicle.x, vehicle.y, vehicle.z);
-    this.kart.group.rotation.y = -vehicle.heading;
-    this.kart.updateMotion({
+  private syncRivalKarts(deltaSeconds: number): void {
+    for (const rival of this.state.rivals) {
+      const visual = this.rivalKarts.get(rival.id);
+      if (visual) this.syncKartVisual(visual, rival.vehicle, deltaSeconds);
+    }
+  }
+
+  private syncKartVisual(visual: KartVisual, vehicle: VehicleState, deltaSeconds: number): void {
+    visual.group.position.set(vehicle.x, vehicle.y, vehicle.z);
+    visual.group.rotation.y = -vehicle.heading;
+    visual.updateMotion({
       speed: vehicle.speed,
       steering: -vehicle.steering,
       drifting: vehicle.drifting,
