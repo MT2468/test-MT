@@ -1,17 +1,27 @@
 import * as THREE from 'three';
-import { createBootKart } from '../objects/createBootKart';
+import { KeyboardInput } from '../../input/KeyboardInput';
+import type { GameState } from '../../simulation/state';
+import { updateVehicle } from '../../simulation/vehicle';
+import { ChaseCamera } from '../camera/ChaseCamera';
+import { createKart } from '../objects/createKart';
 
 export class GameApp {
   private readonly scene = new THREE.Scene();
-  private readonly camera = new THREE.PerspectiveCamera(55, 1, 0.1, 220);
+  private readonly camera = new THREE.PerspectiveCamera(56, 1, 0.1, 320);
   private readonly renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
-  private readonly kart = createBootKart();
+  private readonly kart = createKart();
+  private readonly input = new KeyboardInput();
+  private readonly chaseCamera = new ChaseCamera(this.camera);
   private readonly resizeObserver: ResizeObserver;
-  private startTime = performance.now();
+  private previousTime = performance.now();
 
-  constructor(private readonly container: HTMLElement) {
+  constructor(
+    private readonly container: HTMLElement,
+    private readonly state: GameState,
+    private readonly onStateUpdate: (state: GameState) => void = () => {},
+  ) {
     this.scene.background = new THREE.Color(0x8fd8ff);
-    this.scene.fog = new THREE.Fog(0x8fd8ff, 45, 115);
+    this.scene.fog = new THREE.Fog(0x8fd8ff, 65, 190);
 
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -21,22 +31,24 @@ export class GameApp {
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.container.append(this.renderer.domElement);
 
-    this.camera.position.set(8.5, 6.3, 11.5);
-    this.camera.lookAt(0, 0.9, 0);
+    this.buildPracticeScene();
+    this.syncKart(0);
+    this.chaseCamera.reset(this.state.vehicle);
 
-    this.buildBootScene();
     this.resizeObserver = new ResizeObserver(() => this.resize());
     this.resizeObserver.observe(this.container);
     this.resize();
   }
 
   start(): void {
-    this.startTime = performance.now();
+    this.previousTime = performance.now();
+    this.onStateUpdate(this.state);
     this.renderer.setAnimationLoop((time) => this.render(time));
   }
 
   dispose(): void {
     this.renderer.setAnimationLoop(null);
+    this.input.dispose();
     this.resizeObserver.disconnect();
     this.scene.traverse((object) => {
       if (!(object instanceof THREE.Mesh)) return;
@@ -48,24 +60,23 @@ export class GameApp {
     this.renderer.domElement.remove();
   }
 
-  private buildBootScene(): void {
-    const hemisphere = new THREE.HemisphereLight(0xeaf8ff, 0x154425, 2.1);
-    this.scene.add(hemisphere);
+  private buildPracticeScene(): void {
+    this.scene.add(new THREE.HemisphereLight(0xeaf8ff, 0x154425, 2.1));
 
     const sun = new THREE.DirectionalLight(0xffffff, 3.2);
-    sun.position.set(-8, 14, 9);
+    sun.position.set(-18, 24, 14);
     sun.castShadow = true;
     sun.shadow.mapSize.set(1024, 1024);
     sun.shadow.camera.near = 1;
-    sun.shadow.camera.far = 55;
-    sun.shadow.camera.left = -22;
-    sun.shadow.camera.right = 22;
-    sun.shadow.camera.top = 22;
-    sun.shadow.camera.bottom = -22;
+    sun.shadow.camera.far = 85;
+    sun.shadow.camera.left = -34;
+    sun.shadow.camera.right = 34;
+    sun.shadow.camera.top = 34;
+    sun.shadow.camera.bottom = -34;
     this.scene.add(sun);
 
     const grass = new THREE.Mesh(
-      new THREE.PlaneGeometry(90, 120),
+      new THREE.PlaneGeometry(110, 320),
       new THREE.MeshStandardMaterial({ color: 0x257b43, roughness: 1 }),
     );
     grass.rotation.x = -Math.PI / 2;
@@ -73,7 +84,7 @@ export class GameApp {
     this.scene.add(grass);
 
     const road = new THREE.Mesh(
-      new THREE.PlaneGeometry(14, 92),
+      new THREE.PlaneGeometry(18, 300),
       new THREE.MeshStandardMaterial({ color: 0x2c3038, roughness: 0.96 }),
     );
     road.rotation.x = -Math.PI / 2;
@@ -81,9 +92,9 @@ export class GameApp {
     road.receiveShadow = true;
     this.scene.add(road);
 
-    const stripeGeometry = new THREE.BoxGeometry(0.16, 0.035, 3.2);
+    const stripeGeometry = new THREE.BoxGeometry(0.18, 0.035, 3.4);
     const stripeMaterial = new THREE.MeshStandardMaterial({ color: 0xffe36b, roughness: 0.75 });
-    for (let z = -38; z <= 38; z += 7) {
+    for (let z = -138; z <= 138; z += 8) {
       const stripe = new THREE.Mesh(stripeGeometry, stripeMaterial);
       stripe.position.set(0, 0.045, z);
       stripe.receiveShadow = true;
@@ -91,33 +102,63 @@ export class GameApp {
     }
 
     const curbMaterial = new THREE.MeshStandardMaterial({ color: 0xf2f3f5, roughness: 0.85 });
-    for (const x of [-7.15, 7.15]) {
-      const curb = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.18, 92), curbMaterial);
+    for (const x of [-9.15, 9.15]) {
+      const curb = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.18, 300), curbMaterial);
       curb.position.set(x, 0.09, 0);
       curb.receiveShadow = true;
       curb.castShadow = true;
       this.scene.add(curb);
     }
 
-    this.kart.position.set(0, 0, 1.3);
-    this.kart.rotation.y = Math.PI;
-    this.scene.add(this.kart);
-
-    const ring = new THREE.Mesh(
-      new THREE.TorusGeometry(2.3, 0.09, 12, 56),
-      new THREE.MeshStandardMaterial({ color: 0x45f38f, emissive: 0x0a6a35, emissiveIntensity: 1.4 }),
+    const startLine = new THREE.Mesh(
+      new THREE.BoxGeometry(17.6, 0.04, 0.8),
+      new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.8 }),
     );
-    ring.name = 'boot-ring';
-    ring.rotation.x = Math.PI / 2;
-    ring.position.set(0, 0.12, 1.3);
-    this.scene.add(ring);
+    startLine.position.set(0, 0.05, 22);
+    startLine.receiveShadow = true;
+    this.scene.add(startLine);
+
+    this.addPracticeGate(-85);
+    this.addPracticeGate(85);
+    this.scene.add(this.kart.group);
+  }
+
+  private addPracticeGate(z: number): void {
+    const postMaterial = new THREE.MeshStandardMaterial({ color: 0x1ba65a, roughness: 0.55 });
+    const beamMaterial = new THREE.MeshStandardMaterial({ color: 0xf7c948, roughness: 0.55 });
+
+    for (const x of [-10.8, 10.8]) {
+      const post = new THREE.Mesh(new THREE.BoxGeometry(0.55, 5.5, 0.55), postMaterial);
+      post.position.set(x, 2.75, z);
+      post.castShadow = true;
+      this.scene.add(post);
+    }
+
+    const beam = new THREE.Mesh(new THREE.BoxGeometry(22.2, 0.55, 0.55), beamMaterial);
+    beam.position.set(0, 5.3, z);
+    beam.castShadow = true;
+    this.scene.add(beam);
   }
 
   private render(time: number): void {
-    const elapsed = (time - this.startTime) / 1000;
-    this.kart.position.y = Math.sin(elapsed * 1.7) * 0.035;
-    this.kart.rotation.y = Math.PI + Math.sin(elapsed * 0.55) * 0.035;
+    const deltaSeconds = Math.min((time - this.previousTime) / 1000, 0.05);
+    this.previousTime = time;
+
+    updateVehicle(this.state.vehicle, this.input.readDrivingInput(), deltaSeconds);
+    this.syncKart(time);
+    this.chaseCamera.update(this.state.vehicle, deltaSeconds);
+    this.onStateUpdate(this.state);
     this.renderer.render(this.scene, this.camera);
+  }
+
+  private syncKart(time: number): void {
+    const { vehicle } = this.state;
+    const speedRatio = Math.min(Math.abs(vehicle.speed) / 22, 1);
+    const suspensionBob = Math.sin(time * 0.018) * 0.018 * speedRatio;
+
+    this.kart.group.position.set(vehicle.x, suspensionBob, vehicle.z);
+    this.kart.group.rotation.y = vehicle.heading;
+    this.kart.setSteering(vehicle.steering);
   }
 
   private resize(): void {
