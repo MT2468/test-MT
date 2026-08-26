@@ -1,29 +1,22 @@
+import { createInitialRaceState, type RaceState } from './RaceController';
+import type { TrackDefinition } from '../track/firstTrack';
 import type { VehicleState } from './vehicle';
 
-export interface SpawnPose {
-  readonly x: number;
-  readonly z: number;
-  readonly heading: number;
-}
-
 export interface GameState {
-  phase: 'driving';
+  phase: 'racing' | 'finished';
   balance: number;
   reserve: number;
-  lap: 0;
-  position: 1;
+  race: RaceState;
   vehicle: VehicleState;
 }
 
-const DEFAULT_SPAWN: SpawnPose = Object.freeze({ x: 0, z: 18, heading: 0 });
-
-export function createInitialGameState(spawn: SpawnPose = DEFAULT_SPAWN): GameState {
+export function createInitialGameState(track: TrackDefinition): GameState {
+  const spawn = track.spawn;
   return {
-    phase: 'driving',
+    phase: 'racing',
     balance: 100,
     reserve: 0,
-    lap: 0,
-    position: 1,
+    race: createInitialRaceState(track),
     vehicle: {
       x: spawn.x,
       y: 0,

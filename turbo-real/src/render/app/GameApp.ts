@@ -1,10 +1,12 @@
 import * as THREE from 'three';
 import { KeyboardInput } from '../../input/KeyboardInput';
 import { KartPhysics } from '../../physics/KartPhysics';
+import { RaceController } from '../../simulation/RaceController';
 import type { GameState } from '../../simulation/state';
 import type { TrackDefinition } from '../../track/firstTrack';
 import { ChaseCamera } from '../camera/ChaseCamera';
 import { createKart } from '../objects/createKart';
+import { createRaceMarkers } from '../race/createRaceMarkers';
 import { createTrackScene } from '../track/createTrackScene';
 
 export class GameApp {
@@ -21,6 +23,7 @@ export class GameApp {
     private readonly container: HTMLElement,
     private readonly state: GameState,
     private readonly physics: KartPhysics,
+    private readonly race: RaceController,
     track: TrackDefinition,
     private readonly onStateUpdate: (state: GameState) => void = () => {},
   ) {
@@ -82,6 +85,7 @@ export class GameApp {
     this.scene.add(sun);
 
     this.scene.add(createTrackScene(track));
+    this.scene.add(createRaceMarkers(track));
     this.scene.add(this.kart.group);
   }
 
@@ -90,6 +94,9 @@ export class GameApp {
     this.previousTime = time;
 
     this.physics.advance(this.input.readDrivingInput(), deltaSeconds, this.state.vehicle);
+    this.race.advance(deltaSeconds, this.state.vehicle);
+    if (this.state.race.finished) this.state.phase = 'finished';
+
     this.syncKart(deltaSeconds);
     this.chaseCamera.update(this.state.vehicle, deltaSeconds);
     this.onStateUpdate(this.state);
