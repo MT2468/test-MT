@@ -1,0 +1,51 @@
+name: Build ShakeFlash APK
+
+on:
+  push:
+    branches: [ "shakeflash-v1" ]
+    paths:
+      - "shakeflash/**"
+      - ".github/workflows/shakeflash-build.yml"
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: shakeflash
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android 35 SDK
+        run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.7"
+
+      - name: Build installable APK
+        run: gradle :app:assembleDebug --stacktrace
+
+      - name: Prepare APK
+        run: |
+          mkdir -p dist
+          cp app/build/outputs/apk/debug/app-debug.apk dist/ShakeFlash-v1.0.apk
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: ShakeFlash-v1.0-APK
+          path: shakeflash/dist/ShakeFlash-v1.0.apk
+          retention-days: 30
