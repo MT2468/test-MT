@@ -1,0 +1,14 @@
+plugins { id 'com.android.application' }
+
+android {
+    namespace 'com.mt2468.shakeflash'
+    compileSdk 35
+
+    defaultConfig {
+        applicationId 'com.mt2468.shakeflash'
+        minSdk 23
+        targetSdk 32
+        versionCode 1
+        versionName '1.0'
+    }
+}
