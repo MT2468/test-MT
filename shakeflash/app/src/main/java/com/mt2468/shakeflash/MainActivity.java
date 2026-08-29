@@ -9,13 +9,15 @@ import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.hardware.camera2.CameraCharacteristics;
 import android.hardware.camera2.CameraManager;
+import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.PowerManager;
 import android.provider.Settings;
 import android.view.Gravity;
-import android.view.View;
 import android.widget.Button;
 import android.widget.LinearLayout;
+import android.widget.ScrollView;
 import android.widget.SeekBar;
 import android.widget.Switch;
 import android.widget.TextView;
@@ -24,7 +26,10 @@ public class MainActivity extends Activity {
     private static final int REQ_CAMERA = 10;
     private SharedPreferences prefs;
     private Switch enabled;
+    private Switch alarmFlash;
     private TextView status;
+    private TextView alarmStatus;
+    private TextView batteryStatus;
     private TextView strengthLabel;
     private SeekBar strength;
     private int maxStrength = 1;
@@ -37,52 +42,82 @@ public class MainActivity extends Activity {
         configureStrength();
     }
 
+    @Override
+    protected void onResume() {
+        super.onResume();
+        refreshSystemStatus();
+    }
+
     private void buildUi() {
+        ScrollView scroll = new ScrollView(this);
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
         root.setGravity(Gravity.CENTER_HORIZONTAL);
-        root.setPadding(dp(24), dp(48), dp(24), dp(24));
+        root.setPadding(dp(24), dp(42), dp(24), dp(28));
         root.setBackgroundColor(Color.rgb(10, 10, 12));
+        scroll.addView(root);
 
-        TextView title = text("ShakeFlash", 28, Color.WHITE);
-        root.addView(title);
-
-        TextView subtitle = text("Balance 2x para ligar ou apagar", 15, Color.LTGRAY);
-        LinearLayout.LayoutParams subLp = new LinearLayout.LayoutParams(-2, -2);
-        subLp.setMargins(0, dp(8), 0, dp(28));
+        root.addView(text("ShakeFlash 2", 28, Color.WHITE));
+        TextView subtitle = text("Balance 2x. A lanterna responde mesmo longe do app.", 14, Color.LTGRAY);
+        LinearLayout.LayoutParams subLp = new LinearLayout.LayoutParams(-1, -2);
+        subLp.setMargins(0, dp(8), 0, dp(24));
         root.addView(subtitle, subLp);
 
         enabled = new Switch(this);
-        enabled.setText("Ativar em segundo plano");
+        enabled.setText("Balançar para ligar/desligar");
         enabled.setTextColor(Color.WHITE);
         enabled.setTextSize(17);
         enabled.setChecked(prefs.getBoolean("enabled", false));
         root.addView(enabled, new LinearLayout.LayoutParams(-1, -2));
 
-        status = text(enabled.isChecked() ? "ATIVO" : "DESATIVADO", 13, enabled.isChecked() ? Color.GREEN : Color.GRAY);
-        LinearLayout.LayoutParams statusLp = new LinearLayout.LayoutParams(-2, -2);
-        statusLp.setMargins(0, dp(8), 0, dp(32));
+        status = text("", 12, Color.GRAY);
+        LinearLayout.LayoutParams statusLp = new LinearLayout.LayoutParams(-1, -2);
+        statusLp.setMargins(0, dp(5), 0, dp(22));
         root.addView(status, statusLp);
 
-        strengthLabel = text("Força da lanterna", 16, Color.WHITE);
+        alarmFlash = new Switch(this);
+        alarmFlash.setText("Piscar quando o alarme tocar");
+        alarmFlash.setTextColor(Color.WHITE);
+        alarmFlash.setTextSize(17);
+        alarmFlash.setChecked(prefs.getBoolean("alarm_flash", true));
+        root.addView(alarmFlash, new LinearLayout.LayoutParams(-1, -2));
+
+        alarmStatus = text("", 12, Color.GRAY);
+        LinearLayout.LayoutParams alarmLp = new LinearLayout.LayoutParams(-1, -2);
+        alarmLp.setMargins(0, dp(5), 0, dp(10));
+        root.addView(alarmStatus, alarmLp);
+
+        Button notificationAccess = new Button(this);
+        notificationAccess.setText("Permitir detectar alarmes");
+        notificationAccess.setAllCaps(false);
+        root.addView(notificationAccess, new LinearLayout.LayoutParams(-1, -2));
+
+        TextView divider = text("Lanterna", 15, Color.WHITE);
+        LinearLayout.LayoutParams divLp = new LinearLayout.LayoutParams(-1, -2);
+        divLp.setMargins(0, dp(26), 0, dp(8));
+        root.addView(divider, divLp);
+
+        strengthLabel = text("Força da lanterna", 14, Color.LTGRAY);
         root.addView(strengthLabel);
-
         strength = new SeekBar(this);
-        LinearLayout.LayoutParams seekLp = new LinearLayout.LayoutParams(-1, -2);
-        seekLp.setMargins(0, dp(8), 0, dp(6));
-        root.addView(strength, seekLp);
+        root.addView(strength, new LinearLayout.LayoutParams(-1, -2));
 
-        TextView note = text("Tela apagada funciona enquanto o serviço estiver ativo. Se o sistema encerrar o app, defina a bateria como sem restrições.", 12, Color.GRAY);
-        root.addView(note, new LinearLayout.LayoutParams(-1, -2));
+        batteryStatus = text("", 12, Color.GRAY);
+        LinearLayout.LayoutParams batteryStatusLp = new LinearLayout.LayoutParams(-1, -2);
+        batteryStatusLp.setMargins(0, dp(20), 0, dp(8));
+        root.addView(batteryStatus, batteryStatusLp);
 
         Button battery = new Button(this);
-        battery.setText("Configuração de bateria");
+        battery.setText("Impedir o Android de dormir o app");
         battery.setAllCaps(false);
-        LinearLayout.LayoutParams batteryLp = new LinearLayout.LayoutParams(-1, -2);
-        batteryLp.setMargins(0, dp(18), 0, 0);
-        root.addView(battery, batteryLp);
+        root.addView(battery, new LinearLayout.LayoutParams(-1, -2));
 
-        setContentView(root);
+        TextView note = text("Para a detecção continuar horas depois com a tela apagada, deixe o ShakeFlash sem restrições de bateria. O app usa primeiro um acelerômetro wake-up e evita manter a CPU acordada quando não é necessário.", 12, Color.GRAY);
+        LinearLayout.LayoutParams noteLp = new LinearLayout.LayoutParams(-1, -2);
+        noteLp.setMargins(0, dp(14), 0, 0);
+        root.addView(note, noteLp);
+
+        setContentView(scroll);
 
         enabled.setOnCheckedChangeListener((buttonView, isChecked) -> {
             if (isChecked && checkSelfPermission(Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
@@ -91,10 +126,22 @@ public class MainActivity extends Activity {
                 return;
             }
             prefs.edit().putBoolean("enabled", isChecked).apply();
-            if (isChecked) startShakeService(); else stopService(new Intent(this, ShakeService.class));
-            status.setText(isChecked ? "ATIVO" : "DESATIVADO");
-            status.setTextColor(isChecked ? Color.GREEN : Color.GRAY);
+            if (isChecked) startShakeService(null); else stopService(new Intent(this, ShakeService.class));
+            refreshSystemStatus();
         });
+
+        alarmFlash.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            prefs.edit().putBoolean("alarm_flash", isChecked).apply();
+            if (!isChecked) startShakeService(ShakeService.ACTION_ALARM_STOP);
+            refreshSystemStatus();
+        });
+
+        notificationAccess.setOnClickListener(v -> {
+            try { startActivity(new Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)); }
+            catch (Exception ignored) { startActivity(new Intent(Settings.ACTION_SETTINGS)); }
+        });
+
+        battery.setOnClickListener(v -> requestBatteryExemption());
 
         strength.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             @Override public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
@@ -102,26 +149,58 @@ public class MainActivity extends Activity {
                     int value = progress + 1;
                     prefs.edit().putInt("strength", value).apply();
                     strengthLabel.setText("Força da lanterna: " + value + "/" + maxStrength);
-                    if (fromUser && prefs.getBoolean("enabled", false)) {
-                        Intent i = new Intent(MainActivity.this, ShakeService.class);
-                        i.setAction(ShakeService.ACTION_REFRESH_STRENGTH);
-                        if (Build.VERSION.SDK_INT >= 26) startForegroundService(i); else startService(i);
-                    }
+                    if (fromUser && prefs.getBoolean("enabled", false)) startShakeService(ShakeService.ACTION_REFRESH_STRENGTH);
                 }
             }
             @Override public void onStartTrackingTouch(SeekBar seekBar) {}
             @Override public void onStopTrackingTouch(SeekBar seekBar) {}
         });
 
-        battery.setOnClickListener(v -> {
-            try { startActivity(new Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)); }
-            catch (Exception ignored) { startActivity(new Intent(Settings.ACTION_SETTINGS)); }
-        });
-
         if (enabled.isChecked()) {
-            if (checkSelfPermission(Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) startShakeService();
+            if (checkSelfPermission(Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) startShakeService(null);
             else enabled.setChecked(false);
         }
+        refreshSystemStatus();
+    }
+
+    private void requestBatteryExemption() {
+        try {
+            PowerManager pm = (PowerManager) getSystemService(POWER_SERVICE);
+            if (Build.VERSION.SDK_INT >= 23 && pm != null && !pm.isIgnoringBatteryOptimizations(getPackageName())) {
+                Intent i = new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS);
+                i.setData(Uri.parse("package:" + getPackageName()));
+                startActivity(i);
+            } else {
+                startActivity(new Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS));
+            }
+        } catch (Exception ignored) {
+            try { startActivity(new Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)); }
+            catch (Exception ignored2) { startActivity(new Intent(Settings.ACTION_SETTINGS)); }
+        }
+    }
+
+    private void refreshSystemStatus() {
+        boolean on = prefs.getBoolean("enabled", false);
+        status.setText(on ? "ATIVO • serviço persistente" : "DESATIVADO");
+        status.setTextColor(on ? Color.GREEN : Color.GRAY);
+
+        boolean listener = hasNotificationAccess();
+        alarmStatus.setText(!alarmFlash.isChecked() ? "Desativado" : listener ? "Pronto para detectar alarme tocando" : "Falta conceder acesso às notificações");
+        alarmStatus.setTextColor(alarmFlash.isChecked() && listener ? Color.GREEN : Color.GRAY);
+
+        if (Build.VERSION.SDK_INT >= 23) {
+            PowerManager pm = (PowerManager) getSystemService(POWER_SERVICE);
+            boolean free = pm != null && pm.isIgnoringBatteryOptimizations(getPackageName());
+            batteryStatus.setText(free ? "Bateria: sem restrições ✓" : "Bateria: ainda pode ser encerrado pelo sistema");
+            batteryStatus.setTextColor(free ? Color.GREEN : Color.rgb(255, 180, 80));
+        } else {
+            batteryStatus.setText("Bateria: compatível");
+        }
+    }
+
+    private boolean hasNotificationAccess() {
+        String enabledListeners = Settings.Secure.getString(getContentResolver(), "enabled_notification_listeners");
+        return enabledListeners != null && enabledListeners.contains(getPackageName());
     }
 
     private void configureStrength() {
@@ -156,17 +235,18 @@ public class MainActivity extends Activity {
         }
     }
 
-    private void startShakeService() {
+    private void startShakeService(String action) {
         Intent i = new Intent(this, ShakeService.class);
-        if (Build.VERSION.SDK_INT >= 26) startForegroundService(i); else startService(i);
+        if (action != null) i.setAction(action);
+        try {
+            if (Build.VERSION.SDK_INT >= 26) startForegroundService(i); else startService(i);
+        } catch (Exception ignored) {}
     }
 
     @Override
     public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
-        if (requestCode == REQ_CAMERA && grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-            enabled.setChecked(true);
-        }
+        if (requestCode == REQ_CAMERA && grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) enabled.setChecked(true);
     }
 
     private TextView text(String s, float sp, int color) {
