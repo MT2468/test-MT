@@ -2,7 +2,7 @@ name: Build ShakeFlash APK
 
 on:
   push:
-    branches: [ "shakeflash-v2" ]
+    branches: [ "shakeflash-v2.1" ]
     paths:
       - "shakeflash/**"
       - ".github/workflows/shakeflash-build.yml"
@@ -24,6 +24,12 @@ jobs:
           distribution: temurin
           java-version: "17"
 
+      - name: Restore persistent debug signing key
+        uses: actions/cache@v4
+        with:
+          path: ~/.android/debug.keystore
+          key: shakeflash-debug-keystore-v1
+
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
 
@@ -41,12 +47,12 @@ jobs:
       - name: Prepare APK
         run: |
           mkdir -p dist
-          cp app/build/outputs/apk/debug/app-debug.apk dist/ShakeFlash-v2.0.apk
-          sha256sum dist/ShakeFlash-v2.0.apk
+          cp app/build/outputs/apk/debug/app-debug.apk dist/ShakeFlash-v2.1.apk
+          sha256sum dist/ShakeFlash-v2.1.apk
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: ShakeFlash-v2.0-APK
-          path: shakeflash/dist/ShakeFlash-v2.0.apk
+          name: ShakeFlash-v2.1-APK
+          path: shakeflash/dist/ShakeFlash-v2.1.apk
           retention-days: 30
