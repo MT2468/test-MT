@@ -2,7 +2,7 @@ name: Build ShakeFlash APK
 
 on:
   push:
-    branches: [ "shakeflash-v1" ]
+    branches: [ "shakeflash-v2" ]
     paths:
       - "shakeflash/**"
       - ".github/workflows/shakeflash-build.yml"
@@ -41,11 +41,12 @@ jobs:
       - name: Prepare APK
         run: |
           mkdir -p dist
-          cp app/build/outputs/apk/debug/app-debug.apk dist/ShakeFlash-v1.0.apk
+          cp app/build/outputs/apk/debug/app-debug.apk dist/ShakeFlash-v2.0.apk
+          sha256sum dist/ShakeFlash-v2.0.apk
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: ShakeFlash-v1.0-APK
-          path: shakeflash/dist/ShakeFlash-v1.0.apk
+          name: ShakeFlash-v2.0-APK
+          path: shakeflash/dist/ShakeFlash-v2.0.apk
           retention-days: 30
