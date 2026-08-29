@@ -1,5 +1,6 @@
 package com.mt2468.shakeflash;
 
+import android.app.AlarmManager;
 import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
@@ -15,14 +16,19 @@ import android.hardware.SensorManager;
 import android.hardware.camera2.CameraCharacteristics;
 import android.hardware.camera2.CameraManager;
 import android.os.Build;
+import android.os.Handler;
 import android.os.IBinder;
+import android.os.Looper;
 import android.os.PowerManager;
 import android.os.SystemClock;
 
 public class ShakeService extends Service implements SensorEventListener {
     public static final String ACTION_REFRESH_STRENGTH = "com.mt2468.shakeflash.REFRESH_STRENGTH";
+    public static final String ACTION_ALARM_START = "com.mt2468.shakeflash.ALARM_START";
+    public static final String ACTION_ALARM_STOP = "com.mt2468.shakeflash.ALARM_STOP";
+
     private static final int NOTIFICATION_ID = 2468;
-    private static final String CHANNEL_ID = "shakeflash_active";
+    private static final String CHANNEL_ID = "shakeflash_active_v2";
 
     private SensorManager sensorManager;
     private Sensor accelerometer;
@@ -30,13 +36,27 @@ public class ShakeService extends Service implements SensorEventListener {
     private CameraManager cameraManager;
     private String cameraId;
     private SharedPreferences prefs;
+    private final Handler handler = new Handler(Looper.getMainLooper());
 
     private float gravityX, gravityY, gravityZ;
     private long firstPeakAt = 0;
     private long lastPeakAt = 0;
     private long lastToggleAt = 0;
     private int peakCount = 0;
-    private boolean torchOn = false;
+    private boolean userTorchOn = false;
+    private boolean alarmFlashing = false;
+    private boolean restoreTorchAfterAlarm = false;
+    private boolean flashPhase = false;
+    private boolean sensorRegistered = false;
+
+    private final Runnable flashRunnable = new Runnable() {
+        @Override public void run() {
+            if (!alarmFlashing) return;
+            flashPhase = !flashPhase;
+            setTorchHardware(flashPhase);
+            handler.postDelayed(this, 320);
+        }
+    };
 
     @Override
     public void onCreate() {
@@ -46,14 +66,22 @@ public class ShakeService extends Service implements SensorEventListener {
         cameraId = findTorchCamera();
         createChannel();
         startForeground(NOTIFICATION_ID, buildNotification());
-        startSensor();
-        acquireWakeLock();
+        if (prefs.getBoolean("enabled", false)) startSensor();
     }
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
-        if (intent != null && ACTION_REFRESH_STRENGTH.equals(intent.getAction()) && torchOn) {
-            applyTorch(true);
+        String action = intent == null ? null : intent.getAction();
+
+        if (prefs.getBoolean("enabled", false) && !sensorRegistered) startSensor();
+
+        if (ACTION_REFRESH_STRENGTH.equals(action) && userTorchOn && !alarmFlashing) {
+            setTorchHardware(true);
+        } else if (ACTION_ALARM_START.equals(action)) {
+            startAlarmFlash();
+        } else if (ACTION_ALARM_STOP.equals(action)) {
+            stopAlarmFlash();
+            if (!prefs.getBoolean("enabled", false)) stopSelf();
         }
         return START_STICKY;
     }
@@ -61,22 +89,31 @@ public class ShakeService extends Service implements SensorEventListener {
     private void startSensor() {
         sensorManager = (SensorManager) getSystemService(Context.SENSOR_SERVICE);
         if (sensorManager == null) return;
-        if (Build.VERSION.SDK_INT >= 21) accelerometer = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER, true);
+
+        accelerometer = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER, true);
         if (accelerometer == null) accelerometer = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
-        if (accelerometer != null) sensorManager.registerListener(this, accelerometer, 40000, 0);
+        if (accelerometer == null) return;
+
+        if (sensorRegistered) sensorManager.unregisterListener(this);
+        sensorRegistered = sensorManager.registerListener(this, accelerometer, 30000, 0);
+
+        // Wake-up sensors can wake the app by themselves. Only fall back to a CPU wake lock
+        // on devices whose accelerometer is not a wake-up sensor.
+        if (!accelerometer.isWakeUpSensor()) acquireFallbackWakeLock();
     }
 
-    private void acquireWakeLock() {
+    private void acquireFallbackWakeLock() {
+        if (wakeLock != null && wakeLock.isHeld()) return;
         PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
         if (pm == null) return;
-        wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "ShakeFlash:SensorLock");
+        wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "ShakeFlash:FallbackSensorLock");
         wakeLock.setReferenceCounted(false);
         wakeLock.acquire();
     }
 
     @Override
     public void onSensorChanged(SensorEvent event) {
-        if (event.sensor.getType() != Sensor.TYPE_ACCELEROMETER) return;
+        if (event.sensor.getType() != Sensor.TYPE_ACCELEROMETER || alarmFlashing) return;
 
         final float alpha = 0.80f;
         gravityX = alpha * gravityX + (1f - alpha) * event.values[0];
@@ -89,8 +126,8 @@ public class ShakeService extends Service implements SensorEventListener {
         float magnitude = (float) Math.sqrt(x * x + y * y + z * z);
         long now = SystemClock.elapsedRealtime();
 
-        if (magnitude > 11.5f && now - lastPeakAt > 110) {
-            if (firstPeakAt == 0 || now - firstPeakAt > 700) {
+        if (magnitude > 11.3f && now - lastPeakAt > 105) {
+            if (firstPeakAt == 0 || now - firstPeakAt > 760) {
                 firstPeakAt = now;
                 peakCount = 1;
             } else {
@@ -98,7 +135,7 @@ public class ShakeService extends Service implements SensorEventListener {
             }
             lastPeakAt = now;
 
-            if (peakCount >= 2 && now - lastToggleAt > 1200) {
+            if (peakCount >= 2 && now - lastToggleAt > 1100) {
                 lastToggleAt = now;
                 firstPeakAt = 0;
                 peakCount = 0;
@@ -108,17 +145,34 @@ public class ShakeService extends Service implements SensorEventListener {
     }
 
     private void toggleTorch() {
-        if (cameraId == null) return;
-        torchOn = !torchOn;
-        applyTorch(torchOn);
+        if (cameraId == null || alarmFlashing) return;
+        userTorchOn = !userTorchOn;
+        setTorchHardware(userTorchOn);
     }
 
-    private void applyTorch(boolean on) {
+    private void startAlarmFlash() {
+        if (!prefs.getBoolean("alarm_flash", true) || alarmFlashing) return;
+        restoreTorchAfterAlarm = userTorchOn;
+        alarmFlashing = true;
+        flashPhase = false;
+        handler.removeCallbacks(flashRunnable);
+        handler.post(flashRunnable);
+    }
+
+    private void stopAlarmFlash() {
+        if (!alarmFlashing) return;
+        alarmFlashing = false;
+        handler.removeCallbacks(flashRunnable);
+        flashPhase = false;
+        userTorchOn = restoreTorchAfterAlarm;
+        setTorchHardware(userTorchOn);
+    }
+
+    private void setTorchHardware(boolean on) {
         if (cameraId == null || cameraManager == null) return;
         try {
             if (!on) {
                 cameraManager.setTorchMode(cameraId, false);
-                torchOn = false;
                 return;
             }
 
@@ -128,19 +182,15 @@ public class ShakeService extends Service implements SensorEventListener {
                 if (max != null && max > 1) {
                     int wanted = Math.max(1, Math.min(max, prefs.getInt("strength", 1)));
                     cameraManager.turnOnTorchWithStrengthLevel(cameraId, wanted);
-                    torchOn = true;
                     return;
                 }
             }
-
             cameraManager.setTorchMode(cameraId, true);
-            torchOn = true;
-        } catch (Exception e) {
-            torchOn = false;
-        }
+        } catch (Exception ignored) {}
     }
 
     private String findTorchCamera() {
+        if (cameraManager == null) return null;
         try {
             for (String id : cameraManager.getCameraIdList()) {
                 CameraCharacteristics c = cameraManager.getCameraCharacteristics(id);
@@ -158,19 +208,18 @@ public class ShakeService extends Service implements SensorEventListener {
 
     private void createChannel() {
         if (Build.VERSION.SDK_INT >= 26) {
-            NotificationChannel channel = new NotificationChannel(CHANNEL_ID, "ShakeFlash ativo", NotificationManager.IMPORTANCE_MIN);
-            channel.setDescription("Mantém a detecção de balanço funcionando com a tela apagada");
+            NotificationChannel channel = new NotificationChannel(CHANNEL_ID, "ShakeFlash ativo", NotificationManager.IMPORTANCE_LOW);
+            channel.setDescription("Mantém a detecção de balanço ativa com a tela apagada");
             channel.setShowBadge(false);
             NotificationManager nm = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
-            nm.createNotificationChannel(channel);
+            if (nm != null) nm.createNotificationChannel(channel);
         }
     }
 
     private Notification buildNotification() {
         Intent open = new Intent(this, MainActivity.class);
         PendingIntent pi = PendingIntent.getActivity(this, 0, open,
-                PendingIntent.FLAG_UPDATE_CURRENT | (Build.VERSION.SDK_INT >= 23 ? PendingIntent.FLAG_IMMUTABLE : 0));
-
+                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
         Notification.Builder b = Build.VERSION.SDK_INT >= 26 ? new Notification.Builder(this, CHANNEL_ID) : new Notification.Builder(this);
         return b.setSmallIcon(android.R.drawable.ic_menu_camera)
                 .setContentTitle("ShakeFlash ativo")
@@ -181,13 +230,37 @@ public class ShakeService extends Service implements SensorEventListener {
                 .build();
     }
 
+    private void scheduleRestart() {
+        if (!prefs.getBoolean("enabled", false)) return;
+        try {
+            Intent restart = new Intent(this, RestartReceiver.class);
+            PendingIntent pi = PendingIntent.getBroadcast(this, 2468, restart,
+                    PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+            AlarmManager am = (AlarmManager) getSystemService(ALARM_SERVICE);
+            if (am != null) {
+                long when = SystemClock.elapsedRealtime() + 4000L;
+                if (Build.VERSION.SDK_INT >= 23) am.setAndAllowWhileIdle(AlarmManager.ELAPSED_REALTIME_WAKEUP, when, pi);
+                else am.set(AlarmManager.ELAPSED_REALTIME_WAKEUP, when, pi);
+            }
+        } catch (Exception ignored) {}
+    }
+
+    @Override
+    public void onTaskRemoved(Intent rootIntent) {
+        scheduleRestart();
+        super.onTaskRemoved(rootIntent);
+    }
+
     @Override public void onAccuracyChanged(Sensor sensor, int accuracy) {}
 
     @Override
     public void onDestroy() {
+        handler.removeCallbacks(flashRunnable);
         if (sensorManager != null) sensorManager.unregisterListener(this);
+        sensorRegistered = false;
         if (wakeLock != null && wakeLock.isHeld()) wakeLock.release();
-        applyTorch(false);
+        setTorchHardware(false);
+        scheduleRestart();
         super.onDestroy();
     }
 
